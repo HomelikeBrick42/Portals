@@ -13,6 +13,7 @@ pub struct GpuCamera {
     pub down_sky_color: Color,
     pub sun_color: Color,
     pub sun_light_color: Color,
+    pub ambient_color: Color,
 }
 
 #[derive(Debug, Clone, Copy, ShaderType)]

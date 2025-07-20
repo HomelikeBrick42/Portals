@@ -11,6 +11,7 @@ struct App {
     down_sky_color: Color,
     sun_color: Color,
     sun_light_color: Color,
+    ambient_color: Color,
 }
 
 impl App {
@@ -50,6 +51,11 @@ impl App {
                 r: 1.0,
                 g: 1.0,
                 b: 1.0,
+            },
+            ambient_color: Color {
+                r: 0.1,
+                g: 0.1,
+                b: 0.1,
             },
         }
     }
@@ -94,6 +100,10 @@ impl eframe::App for App {
                     ui.label("Sun Light Color:");
                     ui.color_edit_button_rgb(self.sun_light_color.as_mut());
                 });
+                ui.horizontal(|ui| {
+                    ui.label("Ambient Color:");
+                    ui.color_edit_button_rgb(self.ambient_color.as_mut());
+                });
             });
 
         egui::CentralPanel::default()
@@ -114,6 +124,7 @@ impl eframe::App for App {
                                 down_sky_color: self.down_sky_color,
                                 sun_color: self.sun_color,
                                 sun_light_color: self.sun_light_color,
+                                ambient_color: self.ambient_color,
                             },
                         },
                     ));

@@ -11,6 +11,7 @@ struct Camera
     float3 down_sky_color;
     float3 sun_color;
     float3 sun_light_color;
+    float3 ambient_color;
 }
 
 struct SceneInfo
