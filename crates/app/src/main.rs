@@ -1,5 +1,6 @@
 use eframe::{egui, wgpu};
-use ray_tracing::{RayTracingPaintCallback, RayTracingRenderer};
+use math::Transform;
+use ray_tracing::{GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use std::time::Instant;
 
 struct App {
@@ -55,6 +56,9 @@ impl eframe::App for App {
                         RayTracingPaintCallback {
                             width: rect.width() as u32,
                             height: rect.height() as u32,
+                            camera: GpuCamera {
+                                transform: Transform::IDENTITY,
+                            },
                         },
                     ));
             });
