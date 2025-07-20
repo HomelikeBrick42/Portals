@@ -22,24 +22,253 @@ pub struct GpuSceneInfo {
 }
 
 pub struct RayTracingRenderer {
+    ray_tracing_texture: wgpu::Texture,
+    ray_tracing_texture_write_bind_group_layout: wgpu::BindGroupLayout,
+    ray_tracing_texture_sample_bind_group_layout: wgpu::BindGroupLayout,
+    ray_tracing_texture_write_bind_group: wgpu::BindGroup,
+    ray_tracing_texture_sample_bind_group: wgpu::BindGroup,
+
+    full_screen_quad_pipeline: wgpu::RenderPipeline,
+
     scene_info_buffer: wgpu::Buffer,
+    scene_info_bind_group: wgpu::BindGroup,
+
+    ray_tracing_pipeline: wgpu::ComputePipeline,
 }
 
 impl RayTracingRenderer {
-    pub fn new(device: &wgpu::Device, _queue: &wgpu::Queue) -> Self {
-        let scene_info_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Scene Info"),
-            size: GpuSceneInfo::SHADER_SIZE.get(),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
-        let _full_screen_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
+    pub fn new(
+        device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        surface_format: wgpu::TextureFormat,
+    ) -> Self {
+        let full_screen_quad_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
             env!("OUT_DIR"),
             "/shaders/full_screen_quad.wgsl"
         )));
 
-        Self { scene_info_buffer }
+        let ray_tracing_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
+            env!("OUT_DIR"),
+            "/shaders/ray_tracing.wgsl"
+        )));
+
+        let ray_tracing_texture = Self::ray_tracing_texture(device, 1, 1);
+        let ray_tracing_texture_write_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Ray Tracing Texture Write Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba32Float,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                }],
+            });
+        let ray_tracing_texture_sample_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Ray Tracing Texture Sample Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                        count: None,
+                    },
+                ],
+            });
+        let (ray_tracing_texture_write_bind_group, ray_tracing_texture_sample_bind_group) =
+            Self::ray_tracing_texture_bind_groups(
+                device,
+                &ray_tracing_texture_write_bind_group_layout,
+                &ray_tracing_texture_sample_bind_group_layout,
+                &ray_tracing_texture,
+            );
+
+        let full_screen_quad_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Full Screen Quad Pipeline Layout"),
+                bind_group_layouts: &[&ray_tracing_texture_sample_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+        let full_screen_quad_pipeline =
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("Full Screen Quad Pipeline"),
+                layout: Some(&full_screen_quad_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &full_screen_quad_shader,
+                    entry_point: Some("vertex"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[],
+                },
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleStrip,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Cw,
+                    cull_mode: None,
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &full_screen_quad_shader,
+                    entry_point: Some("fragment"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: surface_format,
+                        blend: None,
+                        write_mask: wgpu::ColorWrites::all(),
+                    })],
+                }),
+                multiview: None,
+                cache: None,
+            });
+
+        let scene_info_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Scene Info Buffer"),
+            size: GpuSceneInfo::SHADER_SIZE.get(),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let scene_info_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Scene Info Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(GpuSceneInfo::SHADER_SIZE),
+                    },
+                    count: None,
+                }],
+            });
+        let scene_info_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Scene Info Bind Group Layout"),
+            layout: &scene_info_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: scene_info_buffer.as_entire_binding(),
+            }],
+        });
+
+        let ray_tracing_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Ray Tracing Pipeline Layout"),
+                bind_group_layouts: &[
+                    &ray_tracing_texture_write_bind_group_layout,
+                    &scene_info_bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+        let ray_tracing_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("Ray Tracing Pipeline"),
+                layout: Some(&ray_tracing_pipeline_layout),
+                module: &ray_tracing_shader,
+                entry_point: Some("ray_trace"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+
+        Self {
+            ray_tracing_texture,
+            ray_tracing_texture_write_bind_group_layout,
+            ray_tracing_texture_sample_bind_group_layout,
+            ray_tracing_texture_write_bind_group,
+            ray_tracing_texture_sample_bind_group,
+
+            full_screen_quad_pipeline,
+
+            scene_info_buffer,
+            scene_info_bind_group,
+
+            ray_tracing_pipeline,
+        }
+    }
+
+    fn ray_tracing_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
+        device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Ray Tracing Texture"),
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba32Float,
+            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        })
+    }
+
+    fn ray_tracing_texture_bind_groups(
+        device: &wgpu::Device,
+        ray_tracing_texture_write_bind_group_layout: &wgpu::BindGroupLayout,
+        ray_tracing_texture_sample_bind_group_layout: &wgpu::BindGroupLayout,
+        ray_tracing_texture: &wgpu::Texture,
+    ) -> (wgpu::BindGroup, wgpu::BindGroup) {
+        let ray_tracing_texture_view = ray_tracing_texture.create_view(&Default::default());
+        let ray_tracing_texture_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Ray Tracing Texture Sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let ray_tracing_texture_write_bind_group =
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Ray Tracing Texture Write Bind Group"),
+                layout: ray_tracing_texture_write_bind_group_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&ray_tracing_texture_view),
+                }],
+            });
+        let ray_tracing_texture_sample_bind_group =
+            device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Ray Tracing Texture Sample Bind Group"),
+                layout: ray_tracing_texture_sample_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&ray_tracing_texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ray_tracing_texture_sampler),
+                    },
+                ],
+            });
+        (
+            ray_tracing_texture_write_bind_group,
+            ray_tracing_texture_sample_bind_group,
+        )
     }
 }
 
@@ -52,13 +281,34 @@ pub struct RayTracingPaintCallback {
 impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
     fn prepare(
         &self,
-        _device: &wgpu::Device,
+        device: &wgpu::Device,
         queue: &wgpu::Queue,
         _screen_descriptor: &eframe::egui_wgpu::ScreenDescriptor,
         _egui_encoder: &mut wgpu::CommandEncoder,
         callback_resources: &mut eframe::egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
         let renderer: &mut RayTracingRenderer = callback_resources.get_mut().unwrap();
+
+        {
+            let ray_tracing_texture_size = renderer.ray_tracing_texture.size();
+            if self.width > 0
+                && self.height > 0
+                && (ray_tracing_texture_size.width != self.width
+                    || ray_tracing_texture_size.height != self.height)
+            {
+                renderer.ray_tracing_texture =
+                    RayTracingRenderer::ray_tracing_texture(device, self.width, self.height);
+                (
+                    renderer.ray_tracing_texture_write_bind_group,
+                    renderer.ray_tracing_texture_sample_bind_group,
+                ) = RayTracingRenderer::ray_tracing_texture_bind_groups(
+                    device,
+                    &renderer.ray_tracing_texture_write_bind_group_layout,
+                    &renderer.ray_tracing_texture_sample_bind_group_layout,
+                    &renderer.ray_tracing_texture,
+                );
+            }
+        }
 
         {
             let scene_info = GpuSceneInfo {
@@ -74,15 +324,41 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
                 .unwrap();
         }
 
-        vec![]
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Ray Tracing Encoder"),
+        });
+
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("Ray Tracing Compute Pass"),
+                timestamp_writes: None,
+            });
+
+            let ray_tracing_texture_size = renderer.ray_tracing_texture.size();
+
+            compute_pass.set_pipeline(&renderer.ray_tracing_pipeline);
+            compute_pass.set_bind_group(0, &renderer.ray_tracing_texture_write_bind_group, &[]);
+            compute_pass.set_bind_group(1, &renderer.scene_info_bind_group, &[]);
+            compute_pass.dispatch_workgroups(
+                ray_tracing_texture_size.width.div_ceil(16),
+                ray_tracing_texture_size.height.div_ceil(16),
+                1,
+            );
+        }
+
+        vec![encoder.finish()]
     }
 
     fn paint(
         &self,
         _info: eframe::egui::PaintCallbackInfo,
-        _render_pass: &mut wgpu::RenderPass<'static>,
+        render_pass: &mut wgpu::RenderPass<'static>,
         callback_resources: &eframe::egui_wgpu::CallbackResources,
     ) {
-        let _renderer: &RayTracingRenderer = callback_resources.get().unwrap();
+        let renderer: &RayTracingRenderer = callback_resources.get().unwrap();
+
+        render_pass.set_pipeline(&renderer.full_screen_quad_pipeline);
+        render_pass.set_bind_group(0, &renderer.ray_tracing_texture_sample_bind_group, &[]);
+        render_pass.draw(0..4, 0..1);
     }
 }

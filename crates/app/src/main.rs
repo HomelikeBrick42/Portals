@@ -16,7 +16,11 @@ struct App {
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let render_state = cc.wgpu_render_state.as_ref().unwrap();
-        let ray_tracer = RayTracingRenderer::new(&render_state.device, &render_state.queue);
+        let ray_tracer = RayTracingRenderer::new(
+            &render_state.device,
+            &render_state.queue,
+            render_state.target_format,
+        );
         render_state
             .renderer
             .write()
