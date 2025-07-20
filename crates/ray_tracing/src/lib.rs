@@ -11,6 +11,7 @@ pub struct GpuCamera {
     pub transform: Transform,
     pub up_sky_color: Color,
     pub down_sky_color: Color,
+    pub sun_size: f32,
     pub sun_color: Color,
     pub sun_light_color: Color,
     pub ambient_color: Color,

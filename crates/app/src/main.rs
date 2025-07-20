@@ -1,7 +1,7 @@
 use eframe::{egui, wgpu};
 use math::Transform;
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
-use std::time::Instant;
+use std::{f32::consts::PI, time::Instant};
 
 struct App {
     last_time: Option<Instant>,
@@ -9,6 +9,7 @@ struct App {
     camera_window_open: bool,
     up_sky_color: Color,
     down_sky_color: Color,
+    sun_size: f32,
     sun_color: Color,
     sun_light_color: Color,
     ambient_color: Color,
@@ -42,9 +43,10 @@ impl App {
                 g: 0.4,
                 b: 0.4,
             },
+            sun_size: 6.0f32.to_radians(),
             sun_color: Color {
-                r: 1.0,
-                g: 0.4,
+                r: 0.8,
+                g: 0.3,
                 b: 0.1,
             },
             sun_light_color: Color {
@@ -93,6 +95,11 @@ impl eframe::App for App {
                     ui.color_edit_button_rgb(self.down_sky_color.as_mut());
                 });
                 ui.horizontal(|ui| {
+                    ui.label("Sun Angular Radius:");
+                    ui.drag_angle(&mut self.sun_size);
+                    self.sun_size = self.sun_size.clamp(0.0, PI);
+                });
+                ui.horizontal(|ui| {
                     ui.label("Sun Color:");
                     ui.color_edit_button_rgb(self.sun_color.as_mut());
                 });
@@ -122,6 +129,7 @@ impl eframe::App for App {
                                 transform: Transform::IDENTITY,
                                 up_sky_color: self.up_sky_color,
                                 down_sky_color: self.down_sky_color,
+                                sun_size: self.sun_size,
                                 sun_color: self.sun_color,
                                 sun_light_color: self.sun_light_color,
                                 ambient_color: self.ambient_color,
