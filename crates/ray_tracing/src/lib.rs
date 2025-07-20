@@ -34,6 +34,11 @@ impl RayTracingRenderer {
             mapped_at_creation: false,
         });
 
+        let _full_screen_shader = device.create_shader_module(wgpu::include_wgsl!(concat!(
+            env!("OUT_DIR"),
+            "/shaders/full_screen_quad.wgsl"
+        )));
+
         Self { scene_info_buffer }
     }
 }
