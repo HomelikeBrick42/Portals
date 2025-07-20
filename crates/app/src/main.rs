@@ -1,11 +1,16 @@
 use eframe::{egui, wgpu};
 use math::Transform;
-use ray_tracing::{GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
+use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use std::time::Instant;
 
 struct App {
     last_time: Option<Instant>,
     info_window_open: bool,
+    camera_window_open: bool,
+    up_sky_color: Color,
+    down_sky_color: Color,
+    sun_color: Color,
+    sun_light_color: Color,
 }
 
 impl App {
@@ -21,6 +26,27 @@ impl App {
         Self {
             last_time: None,
             info_window_open: true,
+            camera_window_open: true,
+            up_sky_color: Color {
+                r: 0.4,
+                g: 0.5,
+                b: 0.8,
+            },
+            down_sky_color: Color {
+                r: 0.4,
+                g: 0.4,
+                b: 0.4,
+            },
+            sun_color: Color {
+                r: 1.0,
+                g: 0.4,
+                b: 0.1,
+            },
+            sun_light_color: Color {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+            },
         }
     }
 }
@@ -34,6 +60,7 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.info_window_open |= ui.button("Info").clicked();
+                self.camera_window_open |= ui.button("Camera").clicked();
             });
         });
 
@@ -42,6 +69,27 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f64()));
                 ui.label(format!("Frame Time: {:.3}ms", dt.as_secs_f64() * 1000.0));
+            });
+
+        egui::Window::new("Camera")
+            .open(&mut self.camera_window_open)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Up Sky Color:");
+                    ui.color_edit_button_rgb(self.up_sky_color.as_mut());
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Down Sky Color:");
+                    ui.color_edit_button_rgb(self.down_sky_color.as_mut());
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Sun Color:");
+                    ui.color_edit_button_rgb(self.sun_color.as_mut());
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Sun Light Color:");
+                    ui.color_edit_button_rgb(self.sun_light_color.as_mut());
+                });
             });
 
         egui::CentralPanel::default()
@@ -58,6 +106,10 @@ impl eframe::App for App {
                             height: rect.height() as u32,
                             camera: GpuCamera {
                                 transform: Transform::IDENTITY,
+                                up_sky_color: self.up_sky_color,
+                                down_sky_color: self.down_sky_color,
+                                sun_color: self.sun_color,
+                                sun_light_color: self.sun_light_color,
                             },
                         },
                     ));

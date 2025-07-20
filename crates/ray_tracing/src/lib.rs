@@ -2,9 +2,17 @@ use eframe::wgpu;
 use encase::{ShaderSize, ShaderType};
 use math::Transform;
 
+mod color;
+
+pub use color::*;
+
 #[derive(Debug, Clone, Copy, ShaderType)]
 pub struct GpuCamera {
     pub transform: Transform,
+    pub up_sky_color: Color,
+    pub down_sky_color: Color,
+    pub sun_color: Color,
+    pub sun_light_color: Color,
 }
 
 #[derive(Debug, Clone, Copy, ShaderType)]
