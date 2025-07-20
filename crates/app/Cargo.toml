@@ -1,0 +1,13 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = { workspace = true }
+wgpu = { workspace = true }
+math = { workspace = true }
+ray_tracing = { workspace = true }
+
+[lints]
+workspace = true

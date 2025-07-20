@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members = ["crates/app", "crates/math", "crates/ray_tracing"]
+
+[workspace.dependencies]
+eframe = { version = "0.32.0", features = ["wgpu", "persistence"] }
+wgpu = "25.0.2"
+math = { path = "crates/math" }
+ray_tracing = { path = "crates/ray_tracing" }
+
+[workspace.lints.rust]
+elided_lifetimes_in_paths = "deny"
