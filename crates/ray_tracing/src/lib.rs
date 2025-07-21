@@ -1,6 +1,6 @@
 use eframe::wgpu;
 use encase::{ShaderSize, ShaderType};
-use math::Transform;
+use math::{Transform, Vector3};
 
 mod color;
 
@@ -14,6 +14,7 @@ pub struct GpuCamera {
     pub sun_size: f32,
     pub sun_color: Color,
     pub sun_light_color: Color,
+    pub sun_direction: Vector3,
     pub ambient_color: Color,
 }
 

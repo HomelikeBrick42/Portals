@@ -13,6 +13,7 @@ struct Camera
     float sun_size;
     float3 sun_color;
     float3 sun_light_color;
+    float3 sun_direction;
     float3 ambient_color;
 }
 
@@ -48,7 +49,7 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 
     var color = lerp(info.camera.down_sky_color, info.camera.up_sky_color, ray.direction.y * 0.5 + 0.5);
 
-    let sun_direction = normalize(float3(0.4, 1.0, 0.2));
+    let sun_direction = normalize(info.camera.sun_direction);
     if (acos(dot(sun_direction, ray.direction)) < info.camera.sun_size)
         color = info.camera.sun_color;
 

@@ -1,5 +1,5 @@
 use eframe::{egui, wgpu};
-use math::Transform;
+use math::{Transform, Vector3};
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use std::{f32::consts::PI, time::Instant};
 
@@ -12,6 +12,7 @@ struct App {
     sun_size: f32,
     sun_color: Color,
     sun_light_color: Color,
+    sun_direction: Vector3,
     ambient_color: Color,
 }
 
@@ -45,14 +46,19 @@ impl App {
             },
             sun_size: 6.0f32.to_radians(),
             sun_color: Color {
-                r: 0.8,
-                g: 0.3,
+                r: 1.0,
+                g: 0.8,
                 b: 0.1,
             },
             sun_light_color: Color {
                 r: 1.0,
                 g: 1.0,
                 b: 1.0,
+            },
+            sun_direction: Vector3 {
+                x: 0.4,
+                y: 1.0,
+                z: 0.2,
             },
             ambient_color: Color {
                 r: 0.1,
@@ -108,6 +114,10 @@ impl eframe::App for App {
                     ui.color_edit_button_rgb(self.sun_light_color.as_mut());
                 });
                 ui.horizontal(|ui| {
+                    ui.label("Sun Direction:");
+                    ui_vector3(ui, &mut self.sun_direction);
+                });
+                ui.horizontal(|ui| {
                     ui.label("Ambient Color:");
                     ui.color_edit_button_rgb(self.ambient_color.as_mut());
                 });
@@ -132,6 +142,7 @@ impl eframe::App for App {
                                 sun_size: self.sun_size,
                                 sun_color: self.sun_color,
                                 sun_light_color: self.sun_light_color,
+                                sun_direction: self.sun_direction,
                                 ambient_color: self.ambient_color,
                             },
                         },
@@ -142,6 +153,12 @@ impl eframe::App for App {
     }
 
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
+}
+
+fn ui_vector3(ui: &mut egui::Ui, v: &mut Vector3) -> egui::Response {
+    ui.add(egui::DragValue::new(&mut v.x).prefix("x:").speed(0.1))
+        | ui.add(egui::DragValue::new(&mut v.y).prefix("y:").speed(0.1))
+        | ui.add(egui::DragValue::new(&mut v.z).prefix("z:").speed(0.1))
 }
 
 fn main() -> eframe::Result<()> {

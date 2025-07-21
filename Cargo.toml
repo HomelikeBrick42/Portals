@@ -3,6 +3,7 @@ resolver = "3"
 members = ["crates/app", "crates/math", "crates/ray_tracing"]
 
 [workspace.dependencies]
+bytemuck = "1.23.1"
 eframe = { version = "0.32.0", features = ["wgpu", "persistence"] }
 encase = "0.11.1"
 wgpu = "25.0.2"
