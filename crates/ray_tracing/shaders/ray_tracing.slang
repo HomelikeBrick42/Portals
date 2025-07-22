@@ -61,20 +61,32 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
         color = info.camera.sun_color;
 
     {
-        var closest_hit : Optional<Hit> = none;
-        for (uint32_t i = 0; i < info.plane_count; i++)
+        let hit = intersect_scene(ray);
+        if (hit.hasValue)
         {
-            let hit = planes[i].Intersect(ray);
-            if (hit.hasValue && (!closest_hit.hasValue || hit.value.distance < closest_hit.value.distance))
-                closest_hit = hit;
-        }
+            let hit = hit.value;
 
-        if (closest_hit.hasValue)
-        {
-            let hit = closest_hit.value;
-            color = hit.color;
+            var sun_ray : Ray;
+            sun_ray.origin = hit.position;
+            sun_ray.direction = sun_direction;
+
+            let sun_hit = intersect_scene(sun_ray);
+            let sun_light = float(!sun_hit.hasValue) * info.camera.sun_light_color * dot(hit.normal, sun_direction);
+            color = hit.color * clamp(sun_light + info.camera.ambient_color, 0.0, 1.0);
         }
     }
 
     main_texture.Store(global_index.xy, float4(color, 1.0));
+}
+
+Optional<Hit> intersect_scene(Ray ray)
+{
+    var closest_hit : Optional<Hit> = none;
+    for (uint32_t i = 0; i < info.plane_count; i++)
+    {
+        let hit = planes[i].Intersect(ray);
+        if (hit.hasValue && hit.value.distance > 0.001 && (!closest_hit.hasValue || hit.value.distance < closest_hit.value.distance))
+            closest_hit = hit;
+    }
+    return closest_hit;
 }

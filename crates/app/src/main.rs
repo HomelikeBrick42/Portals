@@ -87,7 +87,7 @@ impl App {
             last_time: None,
             info_window_open: true,
             camera_window_open: true,
-            camera_transform: Transform::translation(Vector3::UP * 1.0),
+            camera_transform: Transform::translation(Vector3::UP * 1.1),
             camera_speed: 2.0,
             camera_rotation_speed: 0.25,
             up_sky_color: Color {
@@ -117,9 +117,9 @@ impl App {
                 z: 0.2,
             },
             ambient_color: Color {
-                r: 0.1,
-                g: 0.1,
-                b: 0.1,
+                r: 0.3,
+                g: 0.3,
+                b: 0.3,
             },
             planes_window_open: true,
             planes: vec![Plane {
@@ -249,6 +249,30 @@ impl eframe::App for App {
             .open(&mut self.planes_window_open)
             .scroll(true)
             .show(ctx, |ui| {
+                if ui.button("New Plane").clicked() {
+                    self.planes.push(Plane {
+                        name: "Default Plane".into(),
+                        position: Vector3 {
+                            x: 0.0,
+                            y: 0.0,
+                            z: 0.0,
+                        },
+                        xy_rotation: 0.0,
+                        yz_rotation: 0.0,
+                        xz_rotation: 0.0,
+                        color: Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                        },
+                        width: 1.0,
+                        height: 1.0,
+                        checker_count_x: 1,
+                        checker_count_z: 1,
+                        checker_darkness: 0.5,
+                    });
+                }
+
                 let mut to_delete = vec![];
                 for (index, plane) in self.planes.iter_mut().enumerate() {
                     egui::CollapsingHeader::new(&plane.name)
