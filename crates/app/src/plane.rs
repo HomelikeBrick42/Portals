@@ -16,6 +16,14 @@ pub struct Plane {
     pub checker_count_x: u32,
     pub checker_count_z: u32,
     pub checker_darkness: f32,
+    pub front_portal: PortalConnection,
+    pub back_portal: PortalConnection,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+pub struct PortalConnection {
+    pub other_index: Option<usize>,
+    pub flip: bool,
 }
 
 impl Default for Plane {
@@ -40,6 +48,8 @@ impl Default for Plane {
             checker_count_x: 1,
             checker_count_z: 1,
             checker_darkness: 0.5,
+            front_portal: PortalConnection::default(),
+            back_portal: PortalConnection::default(),
         }
     }
 }
@@ -58,6 +68,8 @@ impl Plane {
             checker_count_x,
             checker_count_z,
             checker_darkness,
+            front_portal: _,
+            back_portal: _,
         } = *self;
         GpuPlane {
             transform: Transform::translation(position).then(Transform::from_rotor(

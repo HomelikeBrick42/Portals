@@ -89,6 +89,8 @@ impl Default for State {
                 checker_count_x: 10,
                 checker_count_z: 10,
                 checker_darkness: 0.5,
+                front_portal: PortalConnection::default(),
+                back_portal: PortalConnection::default(),
             }],
         }
     }
@@ -245,10 +247,11 @@ impl eframe::App for App {
                 }
 
                 let mut to_delete = vec![];
-                for (index, plane) in self.state.planes.iter_mut().enumerate() {
-                    egui::CollapsingHeader::new(&plane.name)
+                for index in 0..self.state.planes.len() {
+                    egui::CollapsingHeader::new(&self.state.planes[index].name)
                         .id_salt(index)
                         .show(ui, |ui| {
+                            let plane = &mut self.state.planes[index];
                             ui.text_edit_singleline(&mut plane.name);
                             ui.horizontal(|ui| {
                                 ui.label("Position:");
@@ -298,13 +301,77 @@ impl eframe::App for App {
                                 ui.label("Checker Darkness:");
                                 ui.add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0));
                             });
+                            fn ui_portal_connection(
+                                ui: &mut egui::Ui,
+                                planes: &mut [Plane],
+                                index: usize,
+                                portal: impl Fn(&mut Plane) -> &mut PortalConnection,
+                            ) {
+                                ui.horizontal(|ui| {
+                                    ui.label("Connected Plane:");
+                                    egui::ComboBox::new(("Front Connected Portal", index), "")
+                                        .selected_text(
+                                            portal(&mut planes[index])
+                                                .other_index
+                                                .map(|other_index| {
+                                                    planes[other_index].name.as_str()
+                                                })
+                                                .unwrap_or("None"),
+                                        )
+                                        .show_ui(ui, |ui| {
+                                            ui.selectable_value(
+                                                &mut portal(&mut planes[index]).other_index,
+                                                None,
+                                                "None",
+                                            );
+                                            for other_index in 0..planes.len() {
+                                                let name = planes[other_index].name.clone();
+                                                ui.selectable_value(
+                                                    &mut portal(&mut planes[index]).other_index,
+                                                    Some(other_index),
+                                                    name,
+                                                );
+                                            }
+                                        });
+                                });
+                                ui.horizontal(|ui| {
+                                    ui.label("Flip:");
+                                    ui.checkbox(&mut portal(&mut planes[index]).flip, "");
+                                });
+                            }
+                            ui.collapsing("Front Portal", |ui| {
+                                ui_portal_connection(ui, &mut self.state.planes, index, |plane| {
+                                    &mut plane.front_portal
+                                });
+                            });
+                            ui.collapsing("Back Portal", |ui| {
+                                ui_portal_connection(ui, &mut self.state.planes, index, |plane| {
+                                    &mut plane.back_portal
+                                });
+                            });
                             if ui.button("Delete").clicked() {
                                 to_delete.push(index);
                             }
                         });
                 }
-                for index in to_delete.into_iter().rev() {
-                    self.state.planes.remove(index);
+                for index_to_delete in to_delete.into_iter().rev() {
+                    for (index, plane) in self.state.planes.iter_mut().enumerate() {
+                        if let Some(front_portal_index) = &mut plane.front_portal.other_index {
+                            if *front_portal_index == index_to_delete {
+                                plane.front_portal.other_index = None;
+                            } else if index > index_to_delete {
+                                *front_portal_index -= 1;
+                            }
+                        }
+                        if let Some(back_portal_index) = &mut plane.back_portal.other_index {
+                            if *back_portal_index == index_to_delete {
+                                plane.front_portal.other_index = None;
+                            } else if index > index_to_delete {
+                                *back_portal_index -= 1;
+                            }
+                        }
+                    }
+                    self.state.planes.remove(index_to_delete);
                 }
             });
 
