@@ -35,9 +35,9 @@ struct Transform
         return result;
     }
 
-    Transform next(Transform next)
+    Transform then(Transform then)
     {
-        return next.after(this);
+        return then.after(this);
     }
 
     Transform after(Transform after)

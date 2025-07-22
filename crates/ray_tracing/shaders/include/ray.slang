@@ -11,4 +11,6 @@ struct Hit
     float3 normal;
     float3 color;
     bool front;
+
+    Optional<uint32_t> hit_plane;
 }
