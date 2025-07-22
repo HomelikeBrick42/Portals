@@ -68,7 +68,7 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
         let hit = hit.value;
 
         var sun_ray : Ray;
-        sun_ray.origin = hit.position;
+        sun_ray.origin = hit.position + hit.normal * 0.001;
         sun_ray.direction = sun_direction;
 
         let sun_hit = trace_ray(sun_ray);
@@ -108,7 +108,7 @@ Optional<Hit> trace_ray(inout Ray ray)
 
         let other_plane = planes[other_index];
         let transform = other_plane.transform.then(plane.transform.inverse());
-        ray.origin = transform.transform_point(hit.position);
+        ray.origin = transform.transform_point(hit.position - hit.normal * 0.001);
         if (flip)
             ray.direction = reflect(ray.direction, hit.normal);
         ray.direction = transform.rotor_part().rotate(ray.direction);
@@ -124,7 +124,7 @@ Optional<Hit> intersect_scene(Ray ray)
     for (uint32_t i = 0; i < info.plane_count; i++)
     {
         let hit = planes[i].Intersect(ray);
-        if (hit.hasValue && hit.value.distance > 0.001 && (!closest_hit.hasValue || hit.value.distance < closest_hit.value.distance))
+        if (hit.hasValue && (!closest_hit.hasValue || hit.value.distance < closest_hit.value.distance))
         {
             var hit = hit.value;
             hit.hit_plane = i;
