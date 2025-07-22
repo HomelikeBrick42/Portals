@@ -9,6 +9,7 @@ encase = "0.11.1"
 wgpu = "25.0.2"
 math = { path = "crates/math" }
 ray_tracing = { path = "crates/ray_tracing" }
+serde = { version = "1.0.219", features = ["derive"] }
 
 [workspace.lints.rust]
 elided_lifetimes_in_paths = "deny"

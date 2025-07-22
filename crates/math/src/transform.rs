@@ -1,9 +1,10 @@
 use bytemuck::{Pod, Zeroable};
 use encase::ShaderType;
+use serde::{Deserialize, Serialize};
 
 use crate::{Rotor, Vector3};
 
-#[derive(Debug, Clone, Copy, Zeroable, Pod, ShaderType)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, ShaderType, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Transform {
     pub s: f32,

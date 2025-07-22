@@ -8,6 +8,8 @@ eframe = { workspace = true }
 wgpu = { workspace = true }
 math = { workspace = true }
 ray_tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0.141"
 
 [lints]
 workspace = true

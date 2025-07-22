@@ -1,8 +1,8 @@
+use bytemuck::{Pod, Zeroable};
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Sub, SubAssign};
 
-use bytemuck::{Pod, Zeroable};
-
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Vector3 {
     pub x: f32,

@@ -1,6 +1,7 @@
 use bytemuck::{Pod, Zeroable};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, Zeroable, Pod)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod, Serialize, Deserialize)]
 #[repr(C)]
 pub struct Color {
     pub r: f32,

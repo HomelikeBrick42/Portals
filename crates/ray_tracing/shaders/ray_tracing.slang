@@ -71,7 +71,7 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
             sun_ray.direction = sun_direction;
 
             let sun_hit = intersect_scene(sun_ray);
-            let sun_light = float(!sun_hit.hasValue) * info.camera.sun_light_color * dot(hit.normal, sun_direction);
+            let sun_light = float(!sun_hit.hasValue) * info.camera.sun_light_color * max(dot(hit.normal, sun_direction), 0.0);
             color = hit.color * clamp(sun_light + info.camera.ambient_color, 0.0, 1.0);
         }
     }

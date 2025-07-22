@@ -8,6 +8,7 @@ bytemuck = { workspace = true }
 eframe = { workspace = true }
 encase = { workspace = true }
 math = { workspace = true }
+serde = { workspace = true }
 
 [lints]
 workspace = true

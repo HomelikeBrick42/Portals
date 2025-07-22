@@ -1,58 +1,18 @@
 use eframe::{egui, wgpu};
-use math::{Rotor, Transform, Vector3};
-use ray_tracing::{Color, GpuCamera, GpuPlane, RayTracingPaintCallback, RayTracingRenderer};
+use math::{Transform, Vector3};
+use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
+use serde::{Deserialize, Serialize};
 use std::{
     f32::consts::{PI, TAU},
     time::Instant,
 };
 
-pub struct Plane {
-    pub name: String,
-    pub position: Vector3,
-    pub xy_rotation: f32,
-    pub yz_rotation: f32,
-    pub xz_rotation: f32,
-    pub color: Color,
-    pub width: f32,
-    pub height: f32,
-    pub checker_count_x: u32,
-    pub checker_count_z: u32,
-    pub checker_darkness: f32,
-}
+mod plane;
+pub use plane::*;
 
-impl Plane {
-    pub fn to_gpu(&self) -> GpuPlane {
-        let Self {
-            name: _,
-            position,
-            xy_rotation,
-            yz_rotation,
-            xz_rotation,
-            color,
-            width,
-            height,
-            checker_count_x,
-            checker_count_z,
-            checker_darkness,
-        } = *self;
-        GpuPlane {
-            transform: Transform::translation(position).then(Transform::from_rotor(
-                Rotor::rotation_xy(xy_rotation)
-                    .then(Rotor::rotation_yz(yz_rotation))
-                    .then(Rotor::rotation_xz(xz_rotation)),
-            )),
-            color,
-            width,
-            height,
-            checker_count_x,
-            checker_count_z,
-            checker_darkness,
-        }
-    }
-}
-
-struct App {
-    last_time: Option<Instant>,
+#[derive(Serialize, Deserialize)]
+#[serde(default)]
+struct State {
     info_window_open: bool,
     camera_window_open: bool,
     camera_transform: Transform,
@@ -69,22 +29,9 @@ struct App {
     planes: Vec<Plane>,
 }
 
-impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let render_state = cc.wgpu_render_state.as_ref().unwrap();
-        let ray_tracer = RayTracingRenderer::new(
-            &render_state.device,
-            &render_state.queue,
-            render_state.target_format,
-        );
-        render_state
-            .renderer
-            .write()
-            .callback_resources
-            .insert(ray_tracer);
-
+impl Default for State {
+    fn default() -> Self {
         Self {
-            last_time: None,
             info_window_open: true,
             camera_window_open: true,
             camera_transform: Transform::translation(Vector3::UP * 1.1),
@@ -147,6 +94,36 @@ impl App {
     }
 }
 
+struct App {
+    last_time: Option<Instant>,
+    state: State,
+}
+
+impl App {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let render_state = cc.wgpu_render_state.as_ref().unwrap();
+        let ray_tracer = RayTracingRenderer::new(
+            &render_state.device,
+            &render_state.queue,
+            render_state.target_format,
+        );
+        render_state
+            .renderer
+            .write()
+            .callback_resources
+            .insert(ray_tracer);
+
+        Self {
+            last_time: None,
+            state: cc
+                .storage
+                .and_then(|storage| storage.get_string("State"))
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default(),
+        }
+    }
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         let time = Instant::now();
@@ -155,126 +132,120 @@ impl eframe::App for App {
 
         let ts = dt.as_secs_f32();
 
-        egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                self.info_window_open |= ui.button("Info").clicked();
-                self.camera_window_open |= ui.button("Camera").clicked();
+        {
+            let mut reset_everything = false;
+            egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    reset_everything |= ui.button("RESET EVERYTHING").clicked();
+                    self.state.info_window_open |= ui.button("Info").clicked();
+                    self.state.camera_window_open |= ui.button("Camera").clicked();
+                });
             });
-        });
+            if reset_everything {
+                self.state = State::default();
+            }
+        }
 
         egui::Window::new("Info")
             .resizable(false)
-            .open(&mut self.info_window_open)
+            .open(&mut self.state.info_window_open)
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f64()));
                 ui.label(format!("Frame Time: {:.3}ms", dt.as_secs_f64() * 1000.0));
             });
 
         egui::Window::new("Camera")
-            .open(&mut self.camera_window_open)
+            .open(&mut self.state.camera_window_open)
             .scroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Position:");
-                    let original = self.camera_transform.transform_point(Vector3::ZERO);
+                    let original = self.state.camera_transform.transform_point(Vector3::ZERO);
                     let mut position = original;
                     if ui_vector3(ui, &mut position).changed() {
-                        self.camera_transform =
-                            Transform::translation(position - original).then(self.camera_transform);
+                        self.state.camera_transform = Transform::translation(position - original)
+                            .then(self.state.camera_transform);
                     }
                 });
                 ui.add_enabled_ui(false, |ui| {
                     ui.horizontal(|ui| {
                         ui.label("Forward:");
-                        let mut forward =
-                            self.camera_transform.rotor_part().rotate(Vector3::FORWARD);
+                        let mut forward = self
+                            .state
+                            .camera_transform
+                            .rotor_part()
+                            .rotate(Vector3::FORWARD);
                         ui_vector3(ui, &mut forward);
                     });
                     ui.horizontal(|ui| {
                         ui.label("Up:");
-                        let mut up = self.camera_transform.rotor_part().rotate(Vector3::UP);
+                        let mut up = self.state.camera_transform.rotor_part().rotate(Vector3::UP);
                         ui_vector3(ui, &mut up);
                     });
                     ui.horizontal(|ui| {
                         ui.label("Right:");
-                        let mut right = self.camera_transform.rotor_part().rotate(Vector3::RIGHT);
+                        let mut right = self
+                            .state
+                            .camera_transform
+                            .rotor_part()
+                            .rotate(Vector3::RIGHT);
                         ui_vector3(ui, &mut right);
                     });
                 });
                 ui.collapsing("Transform", |ui| {
                     ui.add_enabled_ui(false, |ui| {
-                        ui_transform(ui, &mut self.camera_transform);
+                        ui_transform(ui, &mut self.state.camera_transform);
                     });
                 });
                 ui.horizontal(|ui| {
                     ui.label("Camera Speed:");
-                    ui.add(egui::DragValue::new(&mut self.camera_speed).speed(0.1));
+                    ui.add(egui::DragValue::new(&mut self.state.camera_speed).speed(0.1));
                 });
                 ui.horizontal(|ui| {
                     ui.label("Camera Rotation Speed:");
-                    ui.add(egui::DragValue::new(&mut self.camera_rotation_speed).speed(0.1));
+                    ui.add(egui::DragValue::new(&mut self.state.camera_rotation_speed).speed(0.1));
                 });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
-                    ui.color_edit_button_rgb(self.up_sky_color.as_mut());
+                    ui.color_edit_button_rgb(self.state.up_sky_color.as_mut());
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Color:");
-                    ui.color_edit_button_rgb(self.down_sky_color.as_mut());
+                    ui.color_edit_button_rgb(self.state.down_sky_color.as_mut());
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Angular Radius:");
-                    ui.drag_angle(&mut self.sun_size);
-                    self.sun_size = self.sun_size.clamp(0.0, PI);
+                    ui.drag_angle(&mut self.state.sun_size);
+                    self.state.sun_size = self.state.sun_size.clamp(0.0, PI);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Color:");
-                    ui.color_edit_button_rgb(self.sun_color.as_mut());
+                    ui.color_edit_button_rgb(self.state.sun_color.as_mut());
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Light Color:");
-                    ui.color_edit_button_rgb(self.sun_light_color.as_mut());
+                    ui.color_edit_button_rgb(self.state.sun_light_color.as_mut());
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Direction:");
-                    ui_vector3(ui, &mut self.sun_direction);
+                    ui_vector3(ui, &mut self.state.sun_direction);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Ambient Color:");
-                    ui.color_edit_button_rgb(self.ambient_color.as_mut());
+                    ui.color_edit_button_rgb(self.state.ambient_color.as_mut());
                 });
             });
 
         egui::Window::new("Planes")
-            .open(&mut self.planes_window_open)
+            .open(&mut self.state.planes_window_open)
             .scroll(true)
             .show(ctx, |ui| {
                 if ui.button("New Plane").clicked() {
-                    self.planes.push(Plane {
-                        name: "Default Plane".into(),
-                        position: Vector3 {
-                            x: 0.0,
-                            y: 0.0,
-                            z: 0.0,
-                        },
-                        xy_rotation: 0.0,
-                        yz_rotation: 0.0,
-                        xz_rotation: 0.0,
-                        color: Color {
-                            r: 1.0,
-                            g: 1.0,
-                            b: 1.0,
-                        },
-                        width: 1.0,
-                        height: 1.0,
-                        checker_count_x: 1,
-                        checker_count_z: 1,
-                        checker_darkness: 0.5,
-                    });
+                    self.state.planes.push(Plane::default());
                 }
 
                 let mut to_delete = vec![];
-                for (index, plane) in self.planes.iter_mut().enumerate() {
+                for (index, plane) in self.state.planes.iter_mut().enumerate() {
                     egui::CollapsingHeader::new(&plane.name)
                         .id_salt(index)
                         .show(ui, |ui| {
@@ -333,7 +304,7 @@ impl eframe::App for App {
                         });
                 }
                 for index in to_delete.into_iter().rev() {
-                    self.planes.remove(index);
+                    self.state.planes.remove(index);
                 }
             });
 
@@ -356,9 +327,9 @@ impl eframe::App for App {
                     }
                     .normalised();
 
-                    self.camera_transform = self.camera_transform.then(Transform::translation(
-                        movement * self.camera_speed * boost * ts,
-                    ));
+                    self.state.camera_transform = self.state.camera_transform.then(
+                        Transform::translation(movement * self.state.camera_speed * boost * ts),
+                    );
                 }
 
                 {
@@ -368,20 +339,23 @@ impl eframe::App for App {
                     let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
 
                     let vertical = up - down;
-                    self.camera_transform = self.camera_transform.then(Transform::rotation_xy(
-                        vertical * self.camera_rotation_speed * TAU * ts,
-                    ));
+                    self.state.camera_transform =
+                        self.state.camera_transform.then(Transform::rotation_xy(
+                            vertical * self.state.camera_rotation_speed * TAU * ts,
+                        ));
 
                     if i.modifiers.shift {
                         let roll = right - left;
-                        self.camera_transform = self.camera_transform.then(Transform::rotation_yz(
-                            roll * self.camera_rotation_speed * TAU * ts,
-                        ));
+                        self.state.camera_transform =
+                            self.state.camera_transform.then(Transform::rotation_yz(
+                                roll * self.state.camera_rotation_speed * TAU * ts,
+                            ));
                     } else {
                         let horizontal = right - left;
-                        self.camera_transform = self.camera_transform.then(Transform::rotation_xz(
-                            horizontal * self.camera_rotation_speed * TAU * ts,
-                        ));
+                        self.state.camera_transform =
+                            self.state.camera_transform.then(Transform::rotation_xz(
+                                horizontal * self.state.camera_rotation_speed * TAU * ts,
+                            ));
                     }
                 }
             });
@@ -400,16 +374,16 @@ impl eframe::App for App {
                             width: rect.width() as u32,
                             height: rect.height() as u32,
                             camera: GpuCamera {
-                                transform: self.camera_transform,
-                                up_sky_color: self.up_sky_color,
-                                down_sky_color: self.down_sky_color,
-                                sun_size: self.sun_size,
-                                sun_color: self.sun_color,
-                                sun_light_color: self.sun_light_color,
-                                sun_direction: self.sun_direction,
-                                ambient_color: self.ambient_color,
+                                transform: self.state.camera_transform,
+                                up_sky_color: self.state.up_sky_color,
+                                down_sky_color: self.state.down_sky_color,
+                                sun_size: self.state.sun_size,
+                                sun_color: self.state.sun_color,
+                                sun_light_color: self.state.sun_light_color,
+                                sun_direction: self.state.sun_direction,
+                                ambient_color: self.state.ambient_color,
                             },
-                            planes: self.planes.iter().map(Plane::to_gpu).collect(),
+                            planes: self.state.planes.iter().map(Plane::to_gpu).collect(),
                         },
                     ));
             });
@@ -417,7 +391,9 @@ impl eframe::App for App {
         ctx.request_repaint();
     }
 
-    fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        storage.set_string("State", serde_json::to_string(&self.state).unwrap());
+    }
 }
 
 fn ui_transform(
