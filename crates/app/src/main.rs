@@ -7,6 +7,7 @@ struct App {
     last_time: Option<Instant>,
     info_window_open: bool,
     camera_window_open: bool,
+    camera_transform: Transform,
     up_sky_color: Color,
     down_sky_color: Color,
     sun_size: f32,
@@ -34,6 +35,7 @@ impl App {
             last_time: None,
             info_window_open: true,
             camera_window_open: true,
+            camera_transform: Transform::IDENTITY,
             up_sky_color: Color {
                 r: 0.4,
                 g: 0.5,
@@ -75,6 +77,8 @@ impl eframe::App for App {
         let dt = time - self.last_time.unwrap_or(time);
         self.last_time = Some(time);
 
+        let ts = dt.as_secs_f32();
+
         egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 self.info_window_open |= ui.button("Info").clicked();
@@ -92,6 +96,38 @@ impl eframe::App for App {
         egui::Window::new("Camera")
             .open(&mut self.camera_window_open)
             .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Position:");
+                    let original = self.camera_transform.transform_point(Vector3::ZERO);
+                    let mut position = original;
+                    if ui_vector3(ui, &mut position).changed() {
+                        self.camera_transform =
+                            Transform::translation(position - original).then(self.camera_transform);
+                    }
+                });
+                ui.add_enabled_ui(false, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Forward:");
+                        let mut forward =
+                            self.camera_transform.rotor_part().rotate(Vector3::FORWARD);
+                        ui_vector3(ui, &mut forward);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Up:");
+                        let mut up = self.camera_transform.rotor_part().rotate(Vector3::UP);
+                        ui_vector3(ui, &mut up);
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Right:");
+                        let mut right = self.camera_transform.rotor_part().rotate(Vector3::RIGHT);
+                        ui_vector3(ui, &mut right);
+                    });
+                });
+                ui.collapsing("Transform", |ui| {
+                    ui.add_enabled_ui(false, |ui| {
+                        ui_transform(ui, &mut self.camera_transform);
+                    });
+                });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
                     ui.color_edit_button_rgb(self.up_sky_color.as_mut());
@@ -123,6 +159,43 @@ impl eframe::App for App {
                 });
             });
 
+        ctx.input(|i| {
+            {
+                let forward = i.key_down(egui::Key::W) as u8 as f32;
+                let backward = i.key_down(egui::Key::S) as u8 as f32;
+                let up = i.key_down(egui::Key::E) as u8 as f32;
+                let down = i.key_down(egui::Key::Q) as u8 as f32;
+                let left = i.key_down(egui::Key::A) as u8 as f32;
+                let right = i.key_down(egui::Key::D) as u8 as f32;
+
+                let movement = Vector3 {
+                    x: forward - backward,
+                    y: up - down,
+                    z: right - left,
+                }
+                .normalised();
+
+                self.camera_transform = self
+                    .camera_transform
+                    .then(Transform::translation(movement * ts));
+            }
+
+            {
+                let up = i.key_down(egui::Key::ArrowUp) as u8 as f32;
+                let down = i.key_down(egui::Key::ArrowDown) as u8 as f32;
+                let left = i.key_down(egui::Key::ArrowLeft) as u8 as f32;
+                let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
+
+                let vertical = up - down;
+                let horizontal = right - left;
+
+                self.camera_transform = self
+                    .camera_transform
+                    .then(Transform::rotation_xy(vertical * ts))
+                    .then(Transform::rotation_xz(horizontal * ts));
+            }
+        });
+
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(255, 0, 255)))
             .show(ctx, |ui| {
@@ -136,7 +209,7 @@ impl eframe::App for App {
                             width: rect.width() as u32,
                             height: rect.height() as u32,
                             camera: GpuCamera {
-                                transform: Transform::IDENTITY,
+                                transform: self.camera_transform,
                                 up_sky_color: self.up_sky_color,
                                 down_sky_color: self.down_sky_color,
                                 sun_size: self.sun_size,
@@ -155,10 +228,33 @@ impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {}
 }
 
-fn ui_vector3(ui: &mut egui::Ui, v: &mut Vector3) -> egui::Response {
-    ui.add(egui::DragValue::new(&mut v.x).prefix("x:").speed(0.1))
-        | ui.add(egui::DragValue::new(&mut v.y).prefix("y:").speed(0.1))
-        | ui.add(egui::DragValue::new(&mut v.z).prefix("z:").speed(0.1))
+fn ui_transform(
+    ui: &mut egui::Ui,
+    Transform {
+        s,
+        e12,
+        e13,
+        e23,
+        e01,
+        e02,
+        e03,
+        e0123,
+    }: &mut Transform,
+) -> egui::Response {
+    ui.add(egui::DragValue::new(s).prefix("s:").speed(0.1))
+        | ui.add(egui::DragValue::new(e12).prefix("e12:").speed(0.1))
+        | ui.add(egui::DragValue::new(e13).prefix("e13:").speed(0.1))
+        | ui.add(egui::DragValue::new(e23).prefix("e23:").speed(0.1))
+        | ui.add(egui::DragValue::new(e01).prefix("e01:").speed(0.1))
+        | ui.add(egui::DragValue::new(e02).prefix("e02:").speed(0.1))
+        | ui.add(egui::DragValue::new(e03).prefix("e03:").speed(0.1))
+        | ui.add(egui::DragValue::new(e0123).prefix("e0123:").speed(0.1))
+}
+
+fn ui_vector3(ui: &mut egui::Ui, Vector3 { x, y, z }: &mut Vector3) -> egui::Response {
+    ui.add(egui::DragValue::new(x).prefix("x:").speed(0.1))
+        | ui.add(egui::DragValue::new(y).prefix("y:").speed(0.1))
+        | ui.add(egui::DragValue::new(z).prefix("z:").speed(0.1))
 }
 
 fn main() -> eframe::Result<()> {

@@ -1,3 +1,4 @@
+import include.rotor;
 import include.transform;
 import include.ray;
 
@@ -44,8 +45,9 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     let right = float3(0.0, 0.0, 1.0);
 
     var ray : Ray;
-    ray.origin = float3(0.0, 0.0, 0.0);
-    ray.direction = normalize(forward + up * uv.y + right * uv.x * info.aspect);
+    // TODO: make optimised functions for getting position/basis axes
+    ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
+    ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
 
     var color = lerp(info.camera.down_sky_color, info.camera.up_sky_color, ray.direction.y * 0.5 + 0.5);
 
