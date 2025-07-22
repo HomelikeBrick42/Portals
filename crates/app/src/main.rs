@@ -7,6 +7,7 @@ use std::{
 };
 
 pub struct Plane {
+    pub name: String,
     pub position: Vector3,
     pub xy_rotation: f32,
     pub yz_rotation: f32,
@@ -14,13 +15,15 @@ pub struct Plane {
     pub color: Color,
     pub width: f32,
     pub height: f32,
-    pub checker_count: u32,
+    pub checker_count_x: u32,
+    pub checker_count_z: u32,
     pub checker_darkness: f32,
 }
 
 impl Plane {
     pub fn to_gpu(&self) -> GpuPlane {
         let Self {
+            name: _,
             position,
             xy_rotation,
             yz_rotation,
@@ -28,7 +31,8 @@ impl Plane {
             color,
             width,
             height,
-            checker_count,
+            checker_count_x,
+            checker_count_z,
             checker_darkness,
         } = *self;
         GpuPlane {
@@ -40,7 +44,8 @@ impl Plane {
             color,
             width,
             height,
-            checker_count,
+            checker_count_x,
+            checker_count_z,
             checker_darkness,
         }
     }
@@ -60,6 +65,7 @@ struct App {
     sun_light_color: Color,
     sun_direction: Vector3,
     ambient_color: Color,
+    planes_window_open: bool,
     planes: Vec<Plane>,
 }
 
@@ -81,7 +87,7 @@ impl App {
             last_time: None,
             info_window_open: true,
             camera_window_open: true,
-            camera_transform: Transform::IDENTITY,
+            camera_transform: Transform::translation(Vector3::UP * 1.0),
             camera_speed: 2.0,
             camera_rotation_speed: 0.25,
             up_sky_color: Color {
@@ -115,10 +121,12 @@ impl App {
                 g: 0.1,
                 b: 0.1,
             },
+            planes_window_open: true,
             planes: vec![Plane {
+                name: "Ground".into(),
                 position: Vector3 {
                     x: 0.0,
-                    y: -1.0,
+                    y: 0.0,
                     z: 0.0,
                 },
                 xy_rotation: 0.0,
@@ -131,7 +139,8 @@ impl App {
                 },
                 width: 10.0,
                 height: 10.0,
-                checker_count: 10,
+                checker_count_x: 10,
+                checker_count_z: 10,
                 checker_darkness: 0.5,
             }],
         }
@@ -236,53 +245,123 @@ impl eframe::App for App {
                 });
             });
 
-        ctx.input(|i| {
-            {
-                let forward = i.key_down(egui::Key::W) as u8 as f32;
-                let backward = i.key_down(egui::Key::S) as u8 as f32;
-                let up = i.key_down(egui::Key::E) as u8 as f32;
-                let down = i.key_down(egui::Key::Q) as u8 as f32;
-                let left = i.key_down(egui::Key::A) as u8 as f32;
-                let right = i.key_down(egui::Key::D) as u8 as f32;
-
-                let boost = i.modifiers.shift as u8 as f32 + 1.0;
-
-                let movement = Vector3 {
-                    x: forward - backward,
-                    y: up - down,
-                    z: right - left,
+        egui::Window::new("Planes")
+            .open(&mut self.planes_window_open)
+            .scroll(true)
+            .show(ctx, |ui| {
+                let mut to_delete = vec![];
+                for (index, plane) in self.planes.iter_mut().enumerate() {
+                    egui::CollapsingHeader::new(&plane.name)
+                        .id_salt(index)
+                        .show(ui, |ui| {
+                            ui.text_edit_singleline(&mut plane.name);
+                            ui.horizontal(|ui| {
+                                ui.label("Position:");
+                                ui_vector3(ui, &mut plane.position);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("XY Rotation:");
+                                ui.drag_angle(&mut plane.xy_rotation);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("YZ Rotation:");
+                                ui.drag_angle(&mut plane.yz_rotation);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("XZ Rotation:");
+                                ui.drag_angle(&mut plane.xz_rotation);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Color:");
+                                ui.color_edit_button_rgb(plane.color.as_mut());
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Size:");
+                                ui.add(
+                                    egui::DragValue::new(&mut plane.width)
+                                        .speed(0.1)
+                                        .prefix("x:"),
+                                );
+                                ui.add(
+                                    egui::DragValue::new(&mut plane.height)
+                                        .speed(0.1)
+                                        .prefix("z:"),
+                                );
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Checker Count:");
+                                ui.add(
+                                    egui::DragValue::new(&mut plane.checker_count_x).prefix("x:"),
+                                );
+                                plane.checker_count_x = plane.checker_count_x.max(1);
+                                ui.add(
+                                    egui::DragValue::new(&mut plane.checker_count_z).prefix("z:"),
+                                );
+                                plane.checker_count_z = plane.checker_count_z.max(1);
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Checker Darkness:");
+                                ui.add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0));
+                            });
+                            if ui.button("Delete").clicked() {
+                                to_delete.push(index);
+                            }
+                        });
                 }
-                .normalised();
+                for index in to_delete.into_iter().rev() {
+                    self.planes.remove(index);
+                }
+            });
 
-                self.camera_transform = self.camera_transform.then(Transform::translation(
-                    movement * self.camera_speed * boost * ts,
-                ));
-            }
+        if !ctx.wants_keyboard_input() {
+            ctx.input(|i| {
+                {
+                    let forward = i.key_down(egui::Key::W) as u8 as f32;
+                    let backward = i.key_down(egui::Key::S) as u8 as f32;
+                    let up = i.key_down(egui::Key::E) as u8 as f32;
+                    let down = i.key_down(egui::Key::Q) as u8 as f32;
+                    let left = i.key_down(egui::Key::A) as u8 as f32;
+                    let right = i.key_down(egui::Key::D) as u8 as f32;
 
-            {
-                let up = i.key_down(egui::Key::ArrowUp) as u8 as f32;
-                let down = i.key_down(egui::Key::ArrowDown) as u8 as f32;
-                let left = i.key_down(egui::Key::ArrowLeft) as u8 as f32;
-                let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
+                    let boost = i.modifiers.shift as u8 as f32 + 1.0;
 
-                let vertical = up - down;
-                self.camera_transform = self.camera_transform.then(Transform::rotation_xy(
-                    vertical * self.camera_rotation_speed * TAU * ts,
-                ));
+                    let movement = Vector3 {
+                        x: forward - backward,
+                        y: up - down,
+                        z: right - left,
+                    }
+                    .normalised();
 
-                if i.modifiers.shift {
-                    let roll = right - left;
-                    self.camera_transform = self.camera_transform.then(Transform::rotation_yz(
-                        roll * self.camera_rotation_speed * TAU * ts,
-                    ));
-                } else {
-                    let horizontal = right - left;
-                    self.camera_transform = self.camera_transform.then(Transform::rotation_xz(
-                        horizontal * self.camera_rotation_speed * TAU * ts,
+                    self.camera_transform = self.camera_transform.then(Transform::translation(
+                        movement * self.camera_speed * boost * ts,
                     ));
                 }
-            }
-        });
+
+                {
+                    let up = i.key_down(egui::Key::ArrowUp) as u8 as f32;
+                    let down = i.key_down(egui::Key::ArrowDown) as u8 as f32;
+                    let left = i.key_down(egui::Key::ArrowLeft) as u8 as f32;
+                    let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
+
+                    let vertical = up - down;
+                    self.camera_transform = self.camera_transform.then(Transform::rotation_xy(
+                        vertical * self.camera_rotation_speed * TAU * ts,
+                    ));
+
+                    if i.modifiers.shift {
+                        let roll = right - left;
+                        self.camera_transform = self.camera_transform.then(Transform::rotation_yz(
+                            roll * self.camera_rotation_speed * TAU * ts,
+                        ));
+                    } else {
+                        let horizontal = right - left;
+                        self.camera_transform = self.camera_transform.then(Transform::rotation_xz(
+                            horizontal * self.camera_rotation_speed * TAU * ts,
+                        ));
+                    }
+                }
+            });
+        }
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE.fill(egui::Color32::from_rgb(255, 0, 255)))

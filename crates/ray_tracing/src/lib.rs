@@ -32,7 +32,8 @@ pub struct GpuPlane {
     pub color: Color,
     pub width: f32,
     pub height: f32,
-    pub checker_count: u32,
+    pub checker_count_x: u32,
+    pub checker_count_z: u32,
     pub checker_darkness: f32,
 }
 
