@@ -1,4 +1,5 @@
 use eframe::{egui, wgpu};
+use egui_file_dialog::FileDialog;
 use math::{Transform, Vector3};
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use serde::{Deserialize, Serialize};
@@ -101,6 +102,14 @@ impl Default for State {
 struct App {
     last_time: Option<Instant>,
     state: State,
+    file_dialog: FileDialog,
+    file_interaction: FileInteraction,
+}
+
+enum FileInteraction {
+    None,
+    Save,
+    Load,
 }
 
 impl App {
@@ -124,6 +133,12 @@ impl App {
                 .and_then(|storage| storage.get_string("State"))
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default(),
+            file_dialog: FileDialog::new()
+                .add_file_filter_extensions("Scene", vec!["scene"])
+                .default_file_filter("Scene")
+                .add_save_extension("Scene", "scene")
+                .default_save_extension("Scene"),
+            file_interaction: FileInteraction::None,
         }
     }
 }
@@ -141,6 +156,14 @@ impl eframe::App for App {
             egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     reset_everything |= ui.button("RESET EVERYTHING").clicked();
+                    if ui.button("Load").clicked() {
+                        self.file_interaction = FileInteraction::Load;
+                        self.file_dialog.pick_file();
+                    }
+                    if ui.button("Save").clicked() {
+                        self.file_interaction = FileInteraction::Save;
+                        self.file_dialog.save_file();
+                    }
                     self.state.info_window_open |= ui.button("Info").clicked();
                     self.state.camera_window_open |= ui.button("Camera").clicked();
                     self.state.planes_window_open |= ui.button("Planes").clicked();
@@ -381,6 +404,24 @@ impl eframe::App for App {
                     self.state.planes.remove(index_to_delete);
                 }
             });
+
+        self.file_dialog.update(ctx);
+        if let Some(path) = self.file_dialog.take_picked() {
+            match std::mem::replace(&mut self.file_interaction, FileInteraction::None) {
+                FileInteraction::None => {}
+                FileInteraction::Save => {
+                    let state = serde_json::to_string(&self.state).unwrap();
+                    _ = std::fs::write(path, state);
+                }
+                FileInteraction::Load => {
+                    if let Ok(s) = std::fs::read_to_string(path)
+                        && let Ok(state) = serde_json::from_str(&s)
+                    {
+                        self.state = state;
+                    }
+                }
+            }
+        }
 
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
