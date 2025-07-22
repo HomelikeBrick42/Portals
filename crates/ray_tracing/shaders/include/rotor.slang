@@ -66,11 +66,9 @@ struct Rotor
         let y = point.y;
         let z = point.z;
 
-        let e012 =
-            c * c * z + d * d * z - a * c * x - a * d * y - b * d * x - a * a * z - b * b * z + 2.0 * b * c * y;
-        let e013 =
-            a * a * y + c * c * y - a * d * z - b * c * z - c * d * x - b * b * y - d * d * y + 2.0 * a * b * x;
-        let e023 = b * b * x + c * c * x - b * d * z - a * a * x - d * d * x + 2.0 * a * b * y + 2.0 * a * c * z + 2.0 * c * d * y;
+        let e012 = c * c * z + d * d * z - 2.0 * a * c * x - 2.0 * a * d * y - 2.0 * b * d * x - a * a * z - b * b * z + 2.0 * b * c * y;
+        let e013 = a * a * y + c * c * y - 2.0 * a * d * z - 2.0 * b * c * z - 2.0 * c * d * x - b * b * y - d * d * y + 2.0 * a * b * x;
+        let e023 = b * b * x + c * c * x - 2.0 * b * d * z - a * a * x - d * d * x + 2.0 * a * b * y + 2.0 * a * c * z + 2.0 * c * d * y;
 
         return float3(
             -e023,

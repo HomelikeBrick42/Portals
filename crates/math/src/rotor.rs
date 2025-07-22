@@ -21,6 +21,7 @@ impl Rotor {
     };
 
     #[inline]
+    #[must_use]
     pub fn rotation_xy(angle: f32) -> Self {
         let (sin, cos) = (angle * 0.5).sin_cos();
         Self {
@@ -31,6 +32,7 @@ impl Rotor {
     }
 
     #[inline]
+    #[must_use]
     pub fn rotation_xz(angle: f32) -> Self {
         let (sin, cos) = (angle * 0.5).sin_cos();
         Self {
@@ -41,6 +43,7 @@ impl Rotor {
     }
 
     #[inline]
+    #[must_use]
     pub fn rotation_yz(angle: f32) -> Self {
         let (sin, cos) = (angle * 0.5).sin_cos();
         Self {
@@ -51,11 +54,13 @@ impl Rotor {
     }
 
     #[inline]
+    #[must_use]
     pub const fn then(self, then: Self) -> Self {
         then.after(self)
     }
 
     #[inline]
+    #[must_use]
     pub const fn after(self, after: Self) -> Self {
         /*
             (a1 + b1*e1*e2 + c1*e1*e3 + d1*e2*e3)
@@ -91,6 +96,7 @@ impl Rotor {
     }
 
     #[inline]
+    #[must_use]
     pub const fn rotate(self, point: Vector3) -> Vector3 {
         /*
             (a + -1*b*e1*e2 + -1*c*e1*e3 + -1*d*e2*e3)
@@ -114,13 +120,21 @@ impl Rotor {
         } = self;
         let Vector3 { x, y, z } = point;
 
-        let e012 =
-            c * c * z + d * d * z - a * c * x - a * d * y - b * d * x - a * a * z - b * b * z
-                + 2.0 * b * c * y;
-        let e013 =
-            a * a * y + c * c * y - a * d * z - b * c * z - c * d * x - b * b * y - d * d * y
-                + 2.0 * a * b * x;
-        let e023 = b * b * x + c * c * x - b * d * z - a * a * x - d * d * x
+        let e012 = c * c * z + d * d * z
+            - 2.0 * a * c * x
+            - 2.0 * a * d * y
+            - 2.0 * b * d * x
+            - a * a * z
+            - b * b * z
+            + 2.0 * b * c * y;
+        let e013 = a * a * y + c * c * y
+            - 2.0 * a * d * z
+            - 2.0 * b * c * z
+            - 2.0 * c * d * x
+            - b * b * y
+            - d * d * y
+            + 2.0 * a * b * x;
+        let e023 = b * b * x + c * c * x - 2.0 * b * d * z - a * a * x - d * d * x
             + 2.0 * a * b * y
             + 2.0 * a * c * z
             + 2.0 * c * d * y;

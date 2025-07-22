@@ -1,13 +1,18 @@
 use eframe::{egui, wgpu};
 use math::{Transform, Vector3};
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
-use std::{f32::consts::PI, time::Instant};
+use std::{
+    f32::consts::{PI, TAU},
+    time::Instant,
+};
 
 struct App {
     last_time: Option<Instant>,
     info_window_open: bool,
     camera_window_open: bool,
     camera_transform: Transform,
+    camera_speed: f32,
+    camera_rotation_speed: f32,
     up_sky_color: Color,
     down_sky_color: Color,
     sun_size: f32,
@@ -36,6 +41,8 @@ impl App {
             info_window_open: true,
             camera_window_open: true,
             camera_transform: Transform::IDENTITY,
+            camera_speed: 2.0,
+            camera_rotation_speed: 0.25,
             up_sky_color: Color {
                 r: 0.4,
                 g: 0.5,
@@ -129,6 +136,14 @@ impl eframe::App for App {
                     });
                 });
                 ui.horizontal(|ui| {
+                    ui.label("Camera Speed:");
+                    ui.add(egui::DragValue::new(&mut self.camera_speed).speed(0.1));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Camera Rotation Speed:");
+                    ui.add(egui::DragValue::new(&mut self.camera_rotation_speed).speed(0.1));
+                });
+                ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
                     ui.color_edit_button_rgb(self.up_sky_color.as_mut());
                 });
@@ -177,7 +192,7 @@ impl eframe::App for App {
 
                 self.camera_transform = self
                     .camera_transform
-                    .then(Transform::translation(movement * ts));
+                    .then(Transform::translation(movement * self.camera_speed * ts));
             }
 
             {
@@ -187,12 +202,21 @@ impl eframe::App for App {
                 let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
 
                 let vertical = up - down;
-                let horizontal = right - left;
+                self.camera_transform = self.camera_transform.then(Transform::rotation_xy(
+                    vertical * self.camera_rotation_speed * TAU * ts,
+                ));
 
-                self.camera_transform = self
-                    .camera_transform
-                    .then(Transform::rotation_xy(vertical * ts))
-                    .then(Transform::rotation_xz(horizontal * ts));
+                if i.modifiers.shift {
+                    let roll = right - left;
+                    self.camera_transform = self.camera_transform.then(Transform::rotation_yz(
+                        roll * self.camera_rotation_speed * TAU * ts,
+                    ));
+                } else {
+                    let horizontal = right - left;
+                    self.camera_transform = self.camera_transform.then(Transform::rotation_xz(
+                        horizontal * self.camera_rotation_speed * TAU * ts,
+                    ));
+                }
             }
         });
 

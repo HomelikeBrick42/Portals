@@ -29,6 +29,7 @@ impl Transform {
     };
 
     #[inline]
+    #[must_use]
     pub const fn translation(offset: Vector3) -> Self {
         Self {
             e01: offset.x * 0.5,
@@ -39,21 +40,25 @@ impl Transform {
     }
 
     #[inline]
+    #[must_use]
     pub fn rotation_xy(angle: f32) -> Self {
         Self::from_rotor(Rotor::rotation_xy(angle))
     }
 
     #[inline]
+    #[must_use]
     pub fn rotation_xz(angle: f32) -> Self {
         Self::from_rotor(Rotor::rotation_xz(angle))
     }
 
     #[inline]
+    #[must_use]
     pub fn rotation_yz(angle: f32) -> Self {
         Self::from_rotor(Rotor::rotation_yz(angle))
     }
 
     #[inline]
+    #[must_use]
     pub const fn from_rotor(rotor: Rotor) -> Self {
         let Rotor { s, e12, e13, e23 } = rotor;
         Self {
@@ -69,6 +74,7 @@ impl Transform {
     }
 
     #[inline]
+    #[must_use]
     pub const fn rotor_part(self) -> Rotor {
         let Self {
             s,
@@ -84,11 +90,13 @@ impl Transform {
     }
 
     #[inline]
+    #[must_use]
     pub const fn then(self, then: Self) -> Self {
         then.after(self)
     }
 
     #[inline]
+    #[must_use]
     pub const fn after(self, after: Self) -> Self {
         /*
             (a1 + b1*e1*e2 + c1*e1*e3 + d1*e2*e3 + e1*e0*e1 + f1*e0*e2 + g1*e0*e3 + h1*e0*e1*e2*e3)
@@ -140,6 +148,7 @@ impl Transform {
     }
 
     #[inline]
+    #[must_use]
     pub const fn transform_point(self, point: Vector3) -> Vector3 {
         /*
             (a + -1*b*e1*e2 + -1*c*e1*e3 + -1*d*e2*e3 + -1*e*e0*e1 + -1*f*e0*e2 + -1*g*e0*e3 + h*e0*e1*e2*e3)
