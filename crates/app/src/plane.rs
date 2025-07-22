@@ -1,5 +1,5 @@
 use math::{Rotor, Transform, Vector3};
-use ray_tracing::{Color, GpuPlane};
+use ray_tracing::{Color, GpuPlane, GpuPortalConnection};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -68,8 +68,8 @@ impl Plane {
             checker_count_x,
             checker_count_z,
             checker_darkness,
-            front_portal: _,
-            back_portal: _,
+            ref front_portal,
+            ref back_portal,
         } = *self;
         GpuPlane {
             transform: Transform::translation(position).then(Transform::from_rotor(
@@ -83,6 +83,20 @@ impl Plane {
             checker_count_x,
             checker_count_z,
             checker_darkness,
+            front_portal: GpuPortalConnection {
+                other_index: front_portal
+                    .other_index
+                    .map(|index| index as u32)
+                    .unwrap_or(u32::MAX),
+                flip: front_portal.flip as u32,
+            },
+            back_portal: GpuPortalConnection {
+                other_index: back_portal
+                    .other_index
+                    .map(|index| index as u32)
+                    .unwrap_or(u32::MAX),
+                flip: back_portal.flip as u32,
+            },
         }
     }
 }

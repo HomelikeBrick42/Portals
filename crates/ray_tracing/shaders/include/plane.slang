@@ -10,6 +10,8 @@ struct Plane
     uint32_t checker_count_x;
     uint32_t checker_count_z;
     float checker_darkness;
+    PortalConnection front_portal;
+    PortalConnection back_portal;
 
     Optional<Hit> Intersect(Ray ray)
     {
@@ -38,4 +40,11 @@ struct Plane
 
         return hit;
     }
+}
+
+struct PortalConnection
+{
+    /// uint32_t.maxValue is no connection
+    uint32_t other_index;
+    uint32_t flip;
 }

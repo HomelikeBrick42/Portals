@@ -35,6 +35,15 @@ pub struct GpuPlane {
     pub checker_count_x: u32,
     pub checker_count_z: u32,
     pub checker_darkness: f32,
+    pub front_portal: GpuPortalConnection,
+    pub back_portal: GpuPortalConnection,
+}
+
+#[derive(Debug, Clone, Copy, ShaderType)]
+pub struct GpuPortalConnection {
+    /// u32::MAX is no connection
+    pub other_index: u32,
+    pub flip: u32,
 }
 
 pub struct RayTracingRenderer {
