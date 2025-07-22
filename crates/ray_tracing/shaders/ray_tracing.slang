@@ -107,10 +107,10 @@ Optional<Hit> trace_ray(inout Ray ray)
 
         let other_plane = planes[other_index];
         let transform = other_plane.transform.then(plane.transform.inverse());
-        ray.origin = transform.transform_point(ray.origin);
-        ray.direction = transform.rotor_part().rotate(ray.direction);
+        ray.origin = transform.transform_point(hit.position);
         if (flip)
-            ray.direction = -ray.direction;
+            ray.direction = reflect(ray.direction, hit.normal);
+        ray.direction = transform.rotor_part().rotate(ray.direction);
 
         result_hit = intersect_scene(ray);
     }
