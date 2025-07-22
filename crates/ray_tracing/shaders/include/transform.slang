@@ -21,6 +21,20 @@ struct Transform
         return rotor;
     }
 
+    Transform inverse()
+    {
+        var result : Transform;
+        result.s = this.s;
+        result.e12 = -this.e12;
+        result.e13 = -this.e13;
+        result.e23 = -this.e23;
+        result.e01 = -this.e01;
+        result.e02 = -this.e02;
+        result.e03 = -this.e03;
+        result.e0123 = this.e0123;
+        return result;
+    }
+
     Transform next(Transform next)
     {
         return next.after(this);

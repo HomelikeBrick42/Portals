@@ -5,6 +5,16 @@ struct Rotor
     float e13;
     float e23;
 
+    Rotor inverse()
+    {
+        var result : Rotor;
+        result.s = this.s;
+        result.e12 = -this.e12;
+        result.e13 = -this.e13;
+        result.e23 = -this.e23;
+        return result;
+    }
+
     Rotor then(Rotor then)
     {
         return then.after(this);

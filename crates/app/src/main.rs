@@ -1,10 +1,50 @@
 use eframe::{egui, wgpu};
-use math::{Transform, Vector3};
-use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
+use math::{Rotor, Transform, Vector3};
+use ray_tracing::{Color, GpuCamera, GpuPlane, RayTracingPaintCallback, RayTracingRenderer};
 use std::{
     f32::consts::{PI, TAU},
     time::Instant,
 };
+
+pub struct Plane {
+    pub position: Vector3,
+    pub xy_rotation: f32,
+    pub yz_rotation: f32,
+    pub xz_rotation: f32,
+    pub color: Color,
+    pub width: f32,
+    pub height: f32,
+    pub checker_count: u32,
+    pub checker_darkness: f32,
+}
+
+impl Plane {
+    pub fn to_gpu(&self) -> GpuPlane {
+        let Self {
+            position,
+            xy_rotation,
+            yz_rotation,
+            xz_rotation,
+            color,
+            width,
+            height,
+            checker_count,
+            checker_darkness,
+        } = *self;
+        GpuPlane {
+            transform: Transform::translation(position).then(Transform::from_rotor(
+                Rotor::rotation_xy(xy_rotation)
+                    .then(Rotor::rotation_yz(yz_rotation))
+                    .then(Rotor::rotation_xz(xz_rotation)),
+            )),
+            color,
+            width,
+            height,
+            checker_count,
+            checker_darkness,
+        }
+    }
+}
 
 struct App {
     last_time: Option<Instant>,
@@ -20,6 +60,7 @@ struct App {
     sun_light_color: Color,
     sun_direction: Vector3,
     ambient_color: Color,
+    planes: Vec<Plane>,
 }
 
 impl App {
@@ -74,6 +115,25 @@ impl App {
                 g: 0.1,
                 b: 0.1,
             },
+            planes: vec![Plane {
+                position: Vector3 {
+                    x: 0.0,
+                    y: -1.0,
+                    z: 0.0,
+                },
+                xy_rotation: 0.0,
+                yz_rotation: 0.0,
+                xz_rotation: 0.0,
+                color: Color {
+                    r: 1.0,
+                    g: 0.0,
+                    b: 0.0,
+                },
+                width: 10.0,
+                height: 10.0,
+                checker_count: 10,
+                checker_darkness: 0.5,
+            }],
         }
     }
 }
@@ -94,6 +154,7 @@ impl eframe::App for App {
         });
 
         egui::Window::new("Info")
+            .resizable(false)
             .open(&mut self.info_window_open)
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f64()));
@@ -102,6 +163,7 @@ impl eframe::App for App {
 
         egui::Window::new("Camera")
             .open(&mut self.camera_window_open)
+            .scroll(true)
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Position:");
@@ -183,6 +245,8 @@ impl eframe::App for App {
                 let left = i.key_down(egui::Key::A) as u8 as f32;
                 let right = i.key_down(egui::Key::D) as u8 as f32;
 
+                let boost = i.modifiers.shift as u8 as f32 + 1.0;
+
                 let movement = Vector3 {
                     x: forward - backward,
                     y: up - down,
@@ -190,9 +254,9 @@ impl eframe::App for App {
                 }
                 .normalised();
 
-                self.camera_transform = self
-                    .camera_transform
-                    .then(Transform::translation(movement * self.camera_speed * ts));
+                self.camera_transform = self.camera_transform.then(Transform::translation(
+                    movement * self.camera_speed * boost * ts,
+                ));
             }
 
             {
@@ -242,6 +306,7 @@ impl eframe::App for App {
                                 sun_direction: self.sun_direction,
                                 ambient_color: self.ambient_color,
                             },
+                            planes: self.planes.iter().map(Plane::to_gpu).collect(),
                         },
                     ));
             });

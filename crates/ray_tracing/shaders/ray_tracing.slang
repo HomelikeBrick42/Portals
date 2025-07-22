@@ -1,6 +1,7 @@
 import include.rotor;
 import include.transform;
 import include.ray;
+import include.plane;
 
 [vk::binding(0, 0)]
 [format("rgba32f")]
@@ -22,10 +23,14 @@ struct SceneInfo
 {
     Camera camera;
     float aspect;
+    uint32_t plane_count;
 }
 
 [vk::binding(0, 1)]
 ConstantBuffer<SceneInfo> info;
+
+[vk::binding(0, 2)]
+StructuredBuffer<Plane> planes;
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
@@ -54,6 +59,22 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     let sun_direction = normalize(info.camera.sun_direction);
     if (acos(dot(sun_direction, ray.direction)) < info.camera.sun_size)
         color = info.camera.sun_color;
+
+    {
+        var closest_hit : Optional<Hit> = none;
+        for (uint32_t i = 0; i < info.plane_count; i++)
+        {
+            let hit = planes[i].Intersect(ray);
+            if (hit.hasValue && (!closest_hit.hasValue || hit.value.distance < closest_hit.value.distance))
+                closest_hit = hit;
+        }
+
+        if (closest_hit.hasValue)
+        {
+            let hit = closest_hit.value;
+            color = hit.color;
+        }
+    }
 
     main_texture.Store(global_index.xy, float4(color, 1.0));
 }

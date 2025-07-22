@@ -22,6 +22,18 @@ pub struct GpuCamera {
 pub struct GpuSceneInfo {
     pub camera: GpuCamera,
     pub aspect: f32,
+    pub plane_count: u32,
+}
+
+/// An XZ plane transformed by `transform`
+#[derive(Debug, Clone, Copy, ShaderType)]
+pub struct GpuPlane {
+    pub transform: Transform,
+    pub color: Color,
+    pub width: f32,
+    pub height: f32,
+    pub checker_count: u32,
+    pub checker_darkness: f32,
 }
 
 pub struct RayTracingRenderer {
@@ -35,6 +47,10 @@ pub struct RayTracingRenderer {
 
     scene_info_buffer: wgpu::Buffer,
     scene_info_bind_group: wgpu::BindGroup,
+
+    planes_buffer: wgpu::Buffer,
+    objects_bind_group_layout: wgpu::BindGroupLayout,
+    objects_bind_group: wgpu::BindGroup,
 
     ray_tracing_pipeline: wgpu::ComputePipeline,
 }
@@ -174,12 +190,31 @@ impl RayTracingRenderer {
             }],
         });
 
+        let planes_buffer = Self::planes_buffer(device, GpuPlane::SHADER_SIZE.get());
+        let objects_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Objects Bind Group Layout"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: Some(GpuPlane::SHADER_SIZE),
+                    },
+                    count: None,
+                }],
+            });
+        let objects_bind_group =
+            Self::objects_bind_group(device, &objects_bind_group_layout, &planes_buffer);
+
         let ray_tracing_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Ray Tracing Pipeline Layout"),
                 bind_group_layouts: &[
                     &ray_tracing_texture_write_bind_group_layout,
                     &scene_info_bind_group_layout,
+                    &objects_bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -205,8 +240,36 @@ impl RayTracingRenderer {
             scene_info_buffer,
             scene_info_bind_group,
 
+            planes_buffer,
+            objects_bind_group_layout,
+            objects_bind_group,
+
             ray_tracing_pipeline,
         }
+    }
+
+    fn planes_buffer(device: &wgpu::Device, size: wgpu::BufferAddress) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Planes Buffer"),
+            size,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
+    }
+
+    fn objects_bind_group(
+        device: &wgpu::Device,
+        objects_bind_group_layout: &wgpu::BindGroupLayout,
+        planes_buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Objects Bind Group"),
+            layout: objects_bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: planes_buffer.as_entire_binding(),
+            }],
+        })
     }
 
     fn ray_tracing_texture(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Texture {
@@ -279,6 +342,7 @@ pub struct RayTracingPaintCallback {
     pub width: u32,
     pub height: u32,
     pub camera: GpuCamera,
+    pub planes: Vec<GpuPlane>,
 }
 
 impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
@@ -317,6 +381,7 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
             let scene_info = GpuSceneInfo {
                 camera: self.camera,
                 aspect: self.width as f32 / self.height as f32,
+                plane_count: self.planes.len() as _,
             };
 
             let mut scene_info_buffer = queue
@@ -325,6 +390,34 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
             encase::UniformBuffer::new(&mut *scene_info_buffer)
                 .write(&scene_info)
                 .unwrap();
+        }
+
+        {
+            let mut should_recreate_objects_bind_group = false;
+
+            {
+                let size = self.planes.size();
+
+                if size.get() > renderer.planes_buffer.size() {
+                    renderer.planes_buffer = RayTracingRenderer::planes_buffer(device, size.get());
+                    should_recreate_objects_bind_group = true;
+                }
+
+                let mut planes_buffer = queue
+                    .write_buffer_with(&renderer.planes_buffer, 0, size)
+                    .unwrap();
+                encase::StorageBuffer::new(&mut *planes_buffer)
+                    .write(&self.planes)
+                    .unwrap();
+            }
+
+            if should_recreate_objects_bind_group {
+                renderer.objects_bind_group = RayTracingRenderer::objects_bind_group(
+                    device,
+                    &renderer.objects_bind_group_layout,
+                    &renderer.planes_buffer,
+                );
+            }
         }
 
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -342,6 +435,7 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
             compute_pass.set_pipeline(&renderer.ray_tracing_pipeline);
             compute_pass.set_bind_group(0, &renderer.ray_tracing_texture_write_bind_group, &[]);
             compute_pass.set_bind_group(1, &renderer.scene_info_bind_group, &[]);
+            compute_pass.set_bind_group(2, &renderer.objects_bind_group, &[]);
             compute_pass.dispatch_workgroups(
                 ray_tracing_texture_size.width.div_ceil(16),
                 ray_tracing_texture_size.height.div_ceil(16),
