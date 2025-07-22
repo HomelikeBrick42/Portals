@@ -25,6 +25,7 @@ struct State {
     sun_light_color: Color,
     sun_direction: Vector3,
     ambient_color: Color,
+    recursive_portal_count: u32,
     planes_window_open: bool,
     planes: Vec<Plane>,
 }
@@ -68,6 +69,7 @@ impl Default for State {
                 g: 0.3,
                 b: 0.3,
             },
+            recursive_portal_count: 10,
             planes_window_open: true,
             planes: vec![Plane {
                 name: "Ground".into(),
@@ -141,6 +143,7 @@ impl eframe::App for App {
                     reset_everything |= ui.button("RESET EVERYTHING").clicked();
                     self.state.info_window_open |= ui.button("Info").clicked();
                     self.state.camera_window_open |= ui.button("Camera").clicked();
+                    self.state.planes_window_open |= ui.button("Planes").clicked();
                 });
             });
             if reset_everything {
@@ -235,6 +238,10 @@ impl eframe::App for App {
                 ui.horizontal(|ui| {
                     ui.label("Ambient Color:");
                     ui.color_edit_button_rgb(self.state.ambient_color.as_mut());
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Recursive Portal Count:");
+                    ui.add(egui::DragValue::new(&mut self.state.recursive_portal_count));
                 });
             });
 
@@ -449,6 +456,7 @@ impl eframe::App for App {
                                 sun_light_color: self.state.sun_light_color,
                                 sun_direction: self.state.sun_direction,
                                 ambient_color: self.state.ambient_color,
+                                recursive_portal_count: self.state.recursive_portal_count,
                             },
                             planes: self.state.planes.iter().map(Plane::to_gpu).collect(),
                         },

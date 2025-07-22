@@ -16,6 +16,7 @@ pub struct GpuCamera {
     pub sun_light_color: Color,
     pub sun_direction: Vector3,
     pub ambient_color: Color,
+    pub recursive_portal_count: u32,
 }
 
 #[derive(Debug, Clone, Copy, ShaderType)]

@@ -17,6 +17,7 @@ struct Camera
     float3 sun_light_color;
     float3 sun_direction;
     float3 ambient_color;
+    uint32_t recursive_portal_count;
 }
 
 struct SceneInfo
@@ -81,7 +82,7 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 Optional<Hit> trace_ray(inout Ray ray)
 {
     var result_hit = intersect_scene(ray);
-    for (var i = 0; i < 10; i++)
+    for (var i = 0; i < info.camera.recursive_portal_count; i++)
     {
         if (!result_hit.hasValue)
             break;
