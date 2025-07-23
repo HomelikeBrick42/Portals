@@ -56,6 +56,18 @@ impl Rotor {
 
     #[inline]
     #[must_use]
+    pub const fn reverse(self) -> Self {
+        let Self { s, e12, e13, e23 } = self;
+        Self {
+            s,
+            e12: -e12,
+            e13: -e13,
+            e23: -e23,
+        }
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn then(self, then: Self) -> Self {
         then.after(self)
     }

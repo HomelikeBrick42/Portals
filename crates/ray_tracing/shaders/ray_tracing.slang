@@ -108,9 +108,13 @@ Optional<Hit> trace_ray(inout Ray ray)
 
         let other_plane = planes[other_index];
         let transform = other_plane.transform.then(plane.transform.inverse());
-        ray.origin = transform.transform_point(hit.position - hit.normal * 0.001);
+
+        var nudge = hit.normal * 0.001;
         if (flip)
             ray.direction = reflect(ray.direction, hit.normal);
+        else
+            nudge = -nudge;
+        ray.origin = transform.transform_point(hit.position + nudge);
         ray.direction = transform.rotor_part().rotate(ray.direction);
 
         result_hit = intersect_scene(ray);

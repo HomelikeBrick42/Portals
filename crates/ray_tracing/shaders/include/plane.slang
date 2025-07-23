@@ -28,7 +28,7 @@ struct Plane
         hit.position = ray.origin + ray.direction * hit.distance;
         hit.normal = normalize(this.transform.rotor_part().rotate(float3(0.0, origin.y, 0.0)));
         hit.color = this.color;
-        hit.front = origin.y > 0.0;
+        hit.front = direction.y < 0.0;
 
         let local_pos = origin.xz + direction.xz * hit.distance;
         if (local_pos.x < this.width * -0.5 || local_pos.y < this.height * -0.5 || local_pos.x > this.width * 0.5 || local_pos.y > this.height * 0.5)

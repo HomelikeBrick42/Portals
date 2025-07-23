@@ -9,7 +9,10 @@ use std::{
 };
 
 mod plane;
+mod ray;
+
 pub use plane::*;
+pub use ray::*;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -428,6 +431,8 @@ impl eframe::App for App {
 
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
+                let old_camera_transform = self.state.camera_transform;
+
                 {
                     let forward = i.key_down(egui::Key::W) as u8 as f32;
                     let backward = i.key_down(egui::Key::S) as u8 as f32;
@@ -474,6 +479,58 @@ impl eframe::App for App {
                             self.state.camera_transform.then(Transform::rotation_xz(
                                 horizontal * self.state.camera_rotation_speed * TAU * ts,
                             ));
+                    }
+                }
+
+                let old_position = old_camera_transform.transform_point(Vector3::ZERO);
+                let new_position = self.state.camera_transform.transform_point(Vector3::ZERO);
+
+                let ray = Ray {
+                    origin: old_position,
+                    direction: (new_position - old_position).normalised(),
+                };
+
+                let closest_hit = self
+                    .state
+                    .planes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, plane)| (i, plane.intersect(ray)))
+                    .fold(None::<(usize, Hit)>, |closest_hit, (index, hit)| {
+                        if let Some((closest_index, closest_hit)) = closest_hit {
+                            if let Some(hit) = hit
+                                && hit.distance < closest_hit.distance
+                            {
+                                Some((index, hit))
+                            } else {
+                                Some((closest_index, closest_hit))
+                            }
+                        } else {
+                            hit.map(|hit| (index, hit))
+                        }
+                    });
+
+                if let Some((index, hit)) = closest_hit
+                    && hit.distance < (new_position - old_position).magnitude()
+                {
+                    let plane = &self.state.planes[index];
+                    if let Some(other_index) = plane.front_portal.other_index
+                        && hit.front
+                    {
+                        let other_plane = &self.state.planes[other_index];
+                        self.state.camera_transform = other_plane
+                            .transform()
+                            .then(plane.transform().reverse())
+                            .then(self.state.camera_transform);
+                        println!("front teleport {}", hit.distance);
+                    } else if let Some(other_index) = plane.back_portal.other_index
+                        && !hit.front
+                    {
+                        let other_plane = &self.state.planes[other_index];
+                        self.state.camera_transform = other_plane
+                            .transform()
+                            .then(plane.transform().reverse())
+                            .then(self.state.camera_transform);
                     }
                 }
             });

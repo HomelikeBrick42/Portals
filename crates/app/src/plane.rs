@@ -2,6 +2,8 @@ use math::{Rotor, Transform, Vector3};
 use ray_tracing::{Color, GpuPlane, GpuPortalConnection};
 use serde::{Deserialize, Serialize};
 
+use crate::{Hit, Ray};
+
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct Plane {
@@ -55,13 +57,59 @@ impl Default for Plane {
 }
 
 impl Plane {
+    pub fn transform(&self) -> Transform {
+        Transform::translation(self.position).then(Transform::from_rotor(
+            Rotor::rotation_xy(self.xy_rotation)
+                .then(Rotor::rotation_yz(self.yz_rotation))
+                .then(Rotor::rotation_xz(self.xz_rotation)),
+        ))
+    }
+
+    pub fn intersect(&self, ray: Ray) -> Option<Hit> {
+        let transform = self.transform();
+        let inverse_transform = transform.reverse();
+        let origin = inverse_transform.transform_point(ray.origin);
+        let direction = inverse_transform.rotor_part().rotate(ray.direction);
+
+        if origin.y.signum() == direction.y.signum() || direction.y.abs() < 0.001 {
+            return None;
+        }
+
+        let distance = (origin.y / direction.y).abs();
+        let position = ray.origin + ray.direction * distance;
+        let normal = transform
+            .transform_point(Vector3 {
+                x: 0.0,
+                y: -direction.y,
+                z: 0.0,
+            })
+            .normalised();
+        let front = direction.y < 0.0;
+
+        let local_pos = origin + direction * distance;
+        if local_pos.x < self.width * -0.5
+            || local_pos.z < self.height * -0.5
+            || local_pos.x > self.width * 0.5
+            || local_pos.z > self.height * 0.5
+        {
+            return None;
+        }
+
+        Some(Hit {
+            distance,
+            position,
+            normal,
+            front,
+        })
+    }
+
     pub fn to_gpu(&self) -> GpuPlane {
         let Self {
             name: _,
-            position,
-            xy_rotation,
-            yz_rotation,
-            xz_rotation,
+            position: _,
+            xy_rotation: _,
+            yz_rotation: _,
+            xz_rotation: _,
             color,
             width,
             height,
@@ -72,11 +120,7 @@ impl Plane {
             ref back_portal,
         } = *self;
         GpuPlane {
-            transform: Transform::translation(position).then(Transform::from_rotor(
-                Rotor::rotation_xy(xy_rotation)
-                    .then(Rotor::rotation_yz(yz_rotation))
-                    .then(Rotor::rotation_xz(xz_rotation)),
-            )),
+            transform: self.transform(),
             color,
             width,
             height,
