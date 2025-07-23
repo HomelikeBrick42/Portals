@@ -96,12 +96,12 @@ Optional<Hit> trace_ray(inout Ray ray)
         if (hit.front)
         {
             other_index = plane.front_portal.other_index;
-            flip = plane.front_portal.flip != 0;
+            // flip = plane.front_portal.flip != 0;
         }
         else
         {
             other_index = plane.back_portal.other_index;
-            flip = plane.back_portal.flip != 0;
+            // flip = plane.back_portal.flip != 0;
         }
         if (other_index == uint32_t.maxValue)
             break;

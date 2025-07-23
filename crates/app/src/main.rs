@@ -321,10 +321,10 @@ impl eframe::App for App {
                                             }
                                         });
                                 });
-                                ui.horizontal(|ui| {
-                                    ui.label("Flip:");
-                                    ui.checkbox(&mut portal(&mut planes[index]).flip, "");
-                                });
+                                // ui.horizontal(|ui| {
+                                //     ui.label("Flip:");
+                                //     ui.checkbox(&mut portal(&mut planes[index]).flip, "");
+                                // });
                             }
                             ui.collapsing("Front Portal", |ui| {
                                 ui_portal_connection(ui, &mut self.state.planes, index, |plane| {

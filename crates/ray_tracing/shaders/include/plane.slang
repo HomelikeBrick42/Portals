@@ -46,5 +46,5 @@ struct PortalConnection
 {
     /// uint32_t.maxValue is no connection
     uint32_t other_index;
-    uint32_t flip;
+    // uint32_t flip;
 }

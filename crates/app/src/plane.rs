@@ -25,7 +25,7 @@ pub struct Plane {
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PortalConnection {
     pub other_index: Option<usize>,
-    pub flip: bool,
+    // pub flip: bool,
 }
 
 impl Default for Plane {
@@ -132,14 +132,14 @@ impl Plane {
                     .other_index
                     .map(|index| index as u32)
                     .unwrap_or(u32::MAX),
-                flip: front_portal.flip as u32,
+                // flip: front_portal.flip as u32,
             },
             back_portal: GpuPortalConnection {
                 other_index: back_portal
                     .other_index
                     .map(|index| index as u32)
                     .unwrap_or(u32::MAX),
-                flip: back_portal.flip as u32,
+                // flip: back_portal.flip as u32,
             },
         }
     }
