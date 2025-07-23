@@ -5,7 +5,7 @@ import include.plane;
 
 [vk::binding(0, 0)]
 [format("rgba32f")]
-WTexture2D main_texture;
+RWTexture2D main_texture;
 
 struct Camera
 {
@@ -77,7 +77,8 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
         color = hit.color * clamp(sun_light + info.camera.ambient_color, 0.0, 1.0);
     }
 
-    main_texture.Store(global_index.xy, float4(color, 1.0));
+    let old_color = main_texture.Load(global_index.xy).rgb;
+    main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
 }
 
 Optional<Hit> trace_ray(inout Ray ray)

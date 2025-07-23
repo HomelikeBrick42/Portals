@@ -536,8 +536,9 @@ fn main() -> eframe::Result<()> {
                 wgpu_setup: eframe::egui_wgpu::WgpuSetup::CreateNew(
                     eframe::egui_wgpu::WgpuSetupCreateNew {
                         device_descriptor: Arc::new(|adapter| wgpu::DeviceDescriptor {
-                            label: Some("egui wgpu device"),
-                            required_features: wgpu::Features::default(),
+                            label: Some("Device"),
+                            required_features:
+                                wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
                             required_limits: adapter.limits(),
                             memory_hints: wgpu::MemoryHints::default(),
                             trace: wgpu::Trace::Off,
