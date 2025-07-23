@@ -61,8 +61,7 @@ impl Plane {
         Transform::translation(self.position).then(Transform::from_rotor(
             Rotor::rotation_xy(self.xy_rotation)
                 .then(Rotor::rotation_yz(self.yz_rotation))
-                .then(Rotor::rotation_xz(self.xz_rotation))
-                .normalised(),
+                .then(Rotor::rotation_xz(self.xz_rotation)),
         ))
     }
 

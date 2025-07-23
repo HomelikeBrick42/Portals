@@ -99,6 +99,9 @@ impl Camera {
             }
         }
 
-        self.rotation = self.rotation.normalised();
+        if (self.rotation.magnitude() - 1.0).abs() > 0.001 {
+            println!("normalising camera rotation");
+            self.rotation = self.rotation.normalised();
+        }
     }
 }
