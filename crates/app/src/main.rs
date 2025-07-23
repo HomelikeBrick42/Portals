@@ -58,8 +58,8 @@ impl Default for State {
             sun_size: 6.0f32.to_radians(),
             sun_color: Color {
                 r: 1.0,
-                g: 0.8,
-                b: 0.1,
+                g: 1.0,
+                b: 1.0,
             },
             sun_intensity: 1.0,
             sun_direction: Vector3 {
