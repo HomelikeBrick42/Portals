@@ -68,6 +68,31 @@ impl Rotor {
 
     #[inline]
     #[must_use]
+    pub const fn sqr_magnitude(self) -> f32 {
+        self.reverse().then(self).s
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn magnitude(self) -> f32 {
+        self.sqr_magnitude()
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn normalised(self) -> Self {
+        let inverse_magnitude = self.magnitude().recip();
+        let Self { s, e12, e13, e23 } = self;
+        Self {
+            s: s * inverse_magnitude,
+            e12: e12 * inverse_magnitude,
+            e13: e13 * inverse_magnitude,
+            e23: e23 * inverse_magnitude,
+        }
+    }
+
+    #[inline]
+    #[must_use]
     pub const fn then(self, then: Self) -> Self {
         then.after(self)
     }

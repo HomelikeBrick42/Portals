@@ -98,5 +98,7 @@ impl Camera {
                 ));
             }
         }
+
+        self.rotation = self.rotation.normalised();
     }
 }
