@@ -10,12 +10,13 @@ pub use color::*;
 pub struct GpuCamera {
     pub transform: Transform,
     pub up_sky_color: Color,
+    pub up_sky_intensity: f32,
     pub down_sky_color: Color,
-    pub sun_size: f32,
+    pub down_sky_intensity: f32,
     pub sun_color: Color,
-    pub sun_light_color: Color,
+    pub sun_intensity: f32,
     pub sun_direction: Vector3,
-    pub ambient_color: Color,
+    pub sun_size: f32,
     pub recursive_portal_count: u32,
 }
 

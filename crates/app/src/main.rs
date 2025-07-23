@@ -20,12 +20,13 @@ struct State {
     camera_window_open: bool,
     camera: Camera,
     up_sky_color: Color,
+    up_sky_intensity: f32,
     down_sky_color: Color,
-    sun_size: f32,
+    down_sky_intensity: f32,
     sun_color: Color,
-    sun_light_color: Color,
+    sun_intensity: f32,
     sun_direction: Vector3,
-    ambient_color: Color,
+    sun_size: f32,
     recursive_portal_count: u32,
     planes_window_open: bool,
     planes: Vec<Plane>,
@@ -47,31 +48,24 @@ impl Default for State {
                 g: 0.5,
                 b: 0.8,
             },
+            up_sky_intensity: 1.0,
             down_sky_color: Color {
                 r: 0.4,
                 g: 0.4,
                 b: 0.4,
             },
+            down_sky_intensity: 1.0,
             sun_size: 6.0f32.to_radians(),
             sun_color: Color {
                 r: 1.0,
                 g: 0.8,
                 b: 0.1,
             },
-            sun_light_color: Color {
-                r: 1.0,
-                g: 1.0,
-                b: 1.0,
-            },
+            sun_intensity: 1.0,
             sun_direction: Vector3 {
                 x: 0.4,
                 y: 1.0,
                 z: 0.2,
-            },
-            ambient_color: Color {
-                r: 0.3,
-                g: 0.3,
-                b: 0.3,
             },
             recursive_portal_count: 10,
             planes_window_open: true,
@@ -156,6 +150,8 @@ impl eframe::App for App {
 
         let ts = dt.as_secs_f32();
 
+        let mut camera_changed = false;
+
         {
             let mut reset_everything = false;
             egui::TopBottomPanel::top("Windows").show(ctx, |ui| {
@@ -176,7 +172,7 @@ impl eframe::App for App {
             });
             if reset_everything {
                 self.state = State::default();
-                self.accumulated_frames = 0;
+                camera_changed = true;
             }
         }
 
@@ -192,9 +188,7 @@ impl eframe::App for App {
             .open(&mut self.state.camera_window_open)
             .scroll(true)
             .show(ctx, |ui| {
-                if self.state.camera.ui(ui) {
-                    self.accumulated_frames = 0;
-                }
+                camera_changed |= self.state.camera.ui(ui);
                 ui.horizontal(|ui| {
                     ui.label("Accumulated Frames:");
                     ui.add_enabled(false, egui::DragValue::new(&mut self.accumulated_frames));
@@ -204,36 +198,54 @@ impl eframe::App for App {
                 });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
-                    ui.color_edit_button_rgb(self.state.up_sky_color.as_mut());
+                    camera_changed |= ui
+                        .color_edit_button_rgb(self.state.up_sky_color.as_mut())
+                        .changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Up Sky Intensity");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.state.up_sky_intensity).speed(0.1))
+                        .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Color:");
-                    ui.color_edit_button_rgb(self.state.down_sky_color.as_mut());
+                    camera_changed |= ui
+                        .color_edit_button_rgb(self.state.down_sky_color.as_mut())
+                        .changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Sun Angular Radius:");
-                    ui.drag_angle(&mut self.state.sun_size);
-                    self.state.sun_size = self.state.sun_size.clamp(0.0, PI);
+                    ui.label("Down Sky Intensity");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.state.down_sky_intensity).speed(0.1))
+                        .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Color:");
-                    ui.color_edit_button_rgb(self.state.sun_color.as_mut());
+                    camera_changed |= ui
+                        .color_edit_button_rgb(self.state.sun_color.as_mut())
+                        .changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Sun Light Color:");
-                    ui.color_edit_button_rgb(self.state.sun_light_color.as_mut());
+                    ui.label("Sun Intensity");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.state.sun_intensity).speed(0.1))
+                        .changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Sun Angular Radius:");
+                    camera_changed |= ui.drag_angle(&mut self.state.sun_size).changed();
+                    self.state.sun_size = self.state.sun_size.clamp(0.0, PI);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Direction:");
-                    ui_vector3(ui, &mut self.state.sun_direction);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Ambient Color:");
-                    ui.color_edit_button_rgb(self.state.ambient_color.as_mut());
+                    camera_changed |= ui_vector3(ui, &mut self.state.sun_direction).changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Recursive Portal Count:");
-                    ui.add(egui::DragValue::new(&mut self.state.recursive_portal_count));
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.state.recursive_portal_count))
+                        .changed();
                 });
             });
 
@@ -243,6 +255,7 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 if ui.button("New Plane").clicked() {
                     self.state.planes.push(Plane::default());
+                    camera_changed = true;
                 }
 
                 let mut to_delete = vec![];
@@ -254,58 +267,72 @@ impl eframe::App for App {
                             ui.text_edit_singleline(&mut plane.name);
                             ui.horizontal(|ui| {
                                 ui.label("Position:");
-                                ui_vector3(ui, &mut plane.position);
+                                camera_changed |= ui_vector3(ui, &mut plane.position).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("XY Rotation:");
-                                ui.drag_angle(&mut plane.xy_rotation);
+                                camera_changed |= ui.drag_angle(&mut plane.xy_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("YZ Rotation:");
-                                ui.drag_angle(&mut plane.yz_rotation);
+                                camera_changed |= ui.drag_angle(&mut plane.yz_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("XZ Rotation:");
-                                ui.drag_angle(&mut plane.xz_rotation);
+                                camera_changed |= ui.drag_angle(&mut plane.xz_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Color:");
-                                ui.color_edit_button_rgb(plane.color.as_mut());
+                                camera_changed |=
+                                    ui.color_edit_button_rgb(plane.color.as_mut()).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Size:");
-                                ui.add(
-                                    egui::DragValue::new(&mut plane.width)
-                                        .speed(0.1)
-                                        .prefix("x:"),
-                                );
-                                ui.add(
-                                    egui::DragValue::new(&mut plane.height)
-                                        .speed(0.1)
-                                        .prefix("z:"),
-                                );
+                                camera_changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut plane.width)
+                                            .speed(0.1)
+                                            .prefix("x:"),
+                                    )
+                                    .changed();
+                                camera_changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut plane.height)
+                                            .speed(0.1)
+                                            .prefix("z:"),
+                                    )
+                                    .changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Checker Count:");
-                                ui.add(
-                                    egui::DragValue::new(&mut plane.checker_count_x).prefix("x:"),
-                                );
+                                camera_changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut plane.checker_count_x)
+                                            .prefix("x:"),
+                                    )
+                                    .changed();
                                 plane.checker_count_x = plane.checker_count_x.max(1);
-                                ui.add(
-                                    egui::DragValue::new(&mut plane.checker_count_z).prefix("z:"),
-                                );
+                                camera_changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut plane.checker_count_z)
+                                            .prefix("z:"),
+                                    )
+                                    .changed();
                                 plane.checker_count_z = plane.checker_count_z.max(1);
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Checker Darkness:");
-                                ui.add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0));
+                                camera_changed |= ui
+                                    .add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0))
+                                    .changed();
                             });
                             fn ui_portal_connection(
                                 ui: &mut egui::Ui,
                                 planes: &mut [Plane],
                                 index: usize,
                                 portal: impl Fn(&mut Plane) -> &mut PortalConnection,
-                            ) {
+                            ) -> bool {
+                                let mut changed = false;
                                 ui.horizontal(|ui| {
                                     ui.label("Connected Plane:");
                                     egui::ComboBox::new(("Front Connected Portal", index), "")
@@ -318,18 +345,22 @@ impl eframe::App for App {
                                                 .unwrap_or("None"),
                                         )
                                         .show_ui(ui, |ui| {
-                                            ui.selectable_value(
-                                                &mut portal(&mut planes[index]).other_index,
-                                                None,
-                                                "None",
-                                            );
+                                            changed |= ui
+                                                .selectable_value(
+                                                    &mut portal(&mut planes[index]).other_index,
+                                                    None,
+                                                    "None",
+                                                )
+                                                .changed();
                                             for other_index in 0..planes.len() {
                                                 let name = planes[other_index].name.clone();
-                                                ui.selectable_value(
-                                                    &mut portal(&mut planes[index]).other_index,
-                                                    Some(other_index),
-                                                    name,
-                                                );
+                                                changed |= ui
+                                                    .selectable_value(
+                                                        &mut portal(&mut planes[index]).other_index,
+                                                        Some(other_index),
+                                                        name,
+                                                    )
+                                                    .changed();
                                             }
                                         });
                                 });
@@ -337,19 +368,27 @@ impl eframe::App for App {
                                 //     ui.label("Flip:");
                                 //     ui.checkbox(&mut portal(&mut planes[index]).flip, "");
                                 // });
+                                changed
                             }
                             ui.collapsing("Front Portal", |ui| {
-                                ui_portal_connection(ui, &mut self.state.planes, index, |plane| {
-                                    &mut plane.front_portal
-                                });
+                                camera_changed |= ui_portal_connection(
+                                    ui,
+                                    &mut self.state.planes,
+                                    index,
+                                    |plane| &mut plane.front_portal,
+                                );
                             });
                             ui.collapsing("Back Portal", |ui| {
-                                ui_portal_connection(ui, &mut self.state.planes, index, |plane| {
-                                    &mut plane.back_portal
-                                });
+                                camera_changed |= ui_portal_connection(
+                                    ui,
+                                    &mut self.state.planes,
+                                    index,
+                                    |plane| &mut plane.back_portal,
+                                );
                             });
                             if ui.button("Delete").clicked() {
                                 to_delete.push(index);
+                                camera_changed = true;
                             }
                         });
                 }
@@ -390,7 +429,7 @@ impl eframe::App for App {
                         && let Ok(state) = serde_json::from_str(&s)
                     {
                         self.state = state;
-                        self.accumulated_frames = 0;
+                        camera_changed = true;
                     }
                 }
             }
@@ -399,9 +438,7 @@ impl eframe::App for App {
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
                 let old_position = self.state.camera.position;
-                if self.state.camera.update(i, ts) {
-                    self.accumulated_frames = 0;
-                }
+                camera_changed |= self.state.camera.update(i, ts);
                 let new_position = self.state.camera.position;
 
                 let ray = Ray {
@@ -442,7 +479,7 @@ impl eframe::App for App {
                             transform.transform_point(self.state.camera.position);
                         self.state.camera.rotation =
                             transform.rotor_part().then(self.state.camera.rotation);
-                        self.accumulated_frames = 0;
+                        camera_changed = true;
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
@@ -452,7 +489,7 @@ impl eframe::App for App {
                             transform.transform_point(self.state.camera.position);
                         self.state.camera.rotation =
                             transform.rotor_part().then(self.state.camera.rotation);
-                        self.accumulated_frames = 0;
+                        camera_changed = true;
                     }
                 }
             });
@@ -464,6 +501,9 @@ impl eframe::App for App {
                 let (rect, _response) =
                     ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
 
+                if camera_changed {
+                    self.accumulated_frames = 0;
+                }
                 ui.painter()
                     .add(eframe::egui_wgpu::Callback::new_paint_callback(
                         rect,
@@ -473,12 +513,13 @@ impl eframe::App for App {
                             camera: GpuCamera {
                                 transform: self.state.camera.transform(),
                                 up_sky_color: self.state.up_sky_color,
+                                up_sky_intensity: self.state.up_sky_intensity,
                                 down_sky_color: self.state.down_sky_color,
-                                sun_size: self.state.sun_size,
+                                down_sky_intensity: self.state.down_sky_intensity,
                                 sun_color: self.state.sun_color,
-                                sun_light_color: self.state.sun_light_color,
-                                sun_direction: self.state.sun_direction,
-                                ambient_color: self.state.ambient_color,
+                                sun_intensity: self.state.sun_intensity,
+                                sun_direction: self.state.sun_direction.normalised(),
+                                sun_size: self.state.sun_size,
                                 recursive_portal_count: self.state.recursive_portal_count,
                             },
                             accumulated_frames: self.accumulated_frames,

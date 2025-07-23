@@ -12,12 +12,13 @@ struct Camera
 {
     Transform transform;
     float3 up_sky_color;
+    float up_sky_intensity;
     float3 down_sky_color;
-    float sun_size;
+    float down_sky_intensity;
     float3 sun_color;
-    float3 sun_light_color;
+    float sun_intensity;
     float3 sun_direction;
-    float3 ambient_color;
+    float sun_size;
     uint32_t recursive_portal_count;
 }
 
@@ -62,11 +63,7 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 
     let hit = trace_ray(ray);
 
-    var color = lerp(info.camera.down_sky_color, info.camera.up_sky_color, ray.direction.y * 0.5 + 0.5);
-
-    let sun_direction = normalize(info.camera.sun_direction);
-    if (acos(dot(sun_direction, ray.direction)) < info.camera.sun_size)
-        color = info.camera.sun_color;
+    var color = skybox(ray);
 
     if (hit.hasValue)
     {
@@ -74,15 +71,25 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 
         var sun_ray : Ray;
         sun_ray.origin = hit.position + hit.normal * 0.001;
-        sun_ray.direction = sun_direction;
+        sun_ray.direction = info.camera.sun_direction;
 
         let sun_hit = trace_ray(sun_ray);
-        let sun_light = float(!sun_hit.hasValue) * info.camera.sun_light_color * max(dot(hit.normal, sun_direction), 0.0);
-        color = hit.color * clamp(sun_light + info.camera.ambient_color, 0.0, 1.0);
+        let sun_light = float(!sun_hit.hasValue) * info.camera.sun_color * info.camera.sun_intensity * max(dot(hit.normal, info.camera.sun_direction), 0.0);
+        color = hit.color * sun_light;
     }
 
     let old_color = main_texture.Load(global_index.xy).rgb;
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
+}
+
+float3 skybox(Ray ray)
+{
+    let up_color = info.camera.up_sky_color * info.camera.up_sky_intensity;
+    let down_color = info.camera.down_sky_color * info.camera.down_sky_intensity;
+    var color = lerp(down_color, up_color, ray.direction.y * 0.5 + 0.5);
+    if (acos(dot(info.camera.sun_direction, ray.direction)) < info.camera.sun_size)
+        color = info.camera.sun_color * info.camera.sun_intensity;
+    return color;
 }
 
 Optional<Hit> trace_ray(inout Ray ray)
