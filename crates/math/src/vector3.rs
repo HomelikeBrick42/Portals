@@ -46,21 +46,25 @@ impl Vector3 {
     pub const RIGHT: Self = Self::Z;
 
     #[inline]
+    #[must_use]
     pub fn dot(self, other: Self) -> f32 {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
     #[inline]
+    #[must_use]
     pub fn sqr_magnitude(self) -> f32 {
         self.dot(self)
     }
 
     #[inline]
+    #[must_use]
     pub fn magnitude(self) -> f32 {
         self.sqr_magnitude().sqrt()
     }
 
     #[inline]
+    #[must_use]
     pub fn normalised(self) -> Self {
         let magnitude = self.magnitude();
         if magnitude > 0.0001 {
@@ -68,6 +72,12 @@ impl Vector3 {
         } else {
             Self::ZERO
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn reflect(self, n: Self) -> Self {
+        self - n * (2.0 * self.dot(n))
     }
 }
 
