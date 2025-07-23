@@ -11,6 +11,7 @@ math = { workspace = true }
 ray_tracing = { workspace = true }
 serde = { workspace = true }
 serde_json = "1.0.141"
+rand = { version = "0.9.2", features = ["std_rng"] }
 
 [lints]
 workspace = true

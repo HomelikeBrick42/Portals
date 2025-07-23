@@ -482,6 +482,11 @@ impl eframe::App for App {
                                 recursive_portal_count: self.state.recursive_portal_count,
                             },
                             accumulated_frames: self.accumulated_frames,
+                            random_seed: rand::Rng::random(
+                                &mut <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(
+                                    self.accumulated_frames as _,
+                                ),
+                            ),
                             planes: self.state.planes.iter().map(Plane::to_gpu).collect(),
                         },
                     ));

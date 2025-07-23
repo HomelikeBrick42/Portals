@@ -2,6 +2,7 @@ import include.rotor;
 import include.transform;
 import include.ray;
 import include.plane;
+import include.random;
 
 [vk::binding(0, 0)]
 [format("rgba32f")]
@@ -25,6 +26,7 @@ struct SceneInfo
     Camera camera;
     float aspect;
     uint32_t accumulated_frames;
+    uint32_t random_seed;
     uint32_t plane_count;
 }
 
@@ -45,7 +47,9 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     if (global_index.x >= width || global_index.y >= height)
         return;
 
-    let uv = (float2(global_index.xy) / float2(width, height)) * 2.0 - 1.0;
+    var state = info.random_seed + global_index.x * 90359791 + global_index.y * 29705237;
+
+    let uv = ((float2(global_index.xy) + float2(random_value(state), random_value(state))) / float2(width, height)) * 2.0 - 1.0;
 
     let forward = float3(1.0, 0.0, 0.0);
     let up = float3(0.0, 1.0, 0.0);
