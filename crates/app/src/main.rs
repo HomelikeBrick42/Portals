@@ -425,6 +425,8 @@ impl eframe::App for App {
                         let transform = other_plane.transform().then(plane.transform().reverse());
                         self.state.camera.position =
                             transform.transform_point(self.state.camera.position);
+                        self.state.camera.rotation =
+                            transform.rotor_part().then(self.state.camera.rotation);
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
@@ -432,6 +434,8 @@ impl eframe::App for App {
                         let transform = other_plane.transform().then(plane.transform().reverse());
                         self.state.camera.position =
                             transform.transform_point(self.state.camera.position);
+                        self.state.camera.rotation =
+                            transform.rotor_part().then(self.state.camera.rotation);
                     }
                 }
             });
