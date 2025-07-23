@@ -4,12 +4,14 @@ import ray;
 struct Plane
 {
     Transform transform;
-    float3 color;
     float width;
     float height;
     uint32_t checker_count_x;
     uint32_t checker_count_z;
+    float3 color;
     float checker_darkness;
+    float3 emissive_color;
+    float emissive_checker_darkness;
     PortalConnection front_portal;
     PortalConnection back_portal;
 
@@ -28,6 +30,7 @@ struct Plane
         hit.position = ray.origin + ray.direction * hit.distance;
         hit.normal = normalize(this.transform.rotor_part().rotate(float3(0.0, origin.y, 0.0)));
         hit.color = this.color;
+        hit.emissive_color = this.emissive_color;
         hit.front = direction.y < 0.0;
 
         let local_pos = origin.xz + direction.xz * hit.distance;
@@ -36,7 +39,10 @@ struct Plane
 
         let cell = uint2((local_pos / float2(this.width, this.height) + 0.5) * float2(this.checker_count_x, this.checker_count_z));
         if ((cell.x + cell.y) % 2 == 1)
+        {
             hit.color *= this.checker_darkness;
+            hit.emissive_color *= this.emissive_checker_darkness;
+        }
 
         return hit;
     }

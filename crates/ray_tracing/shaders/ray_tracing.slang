@@ -12,11 +12,8 @@ struct Camera
 {
     Transform transform;
     float3 up_sky_color;
-    float up_sky_intensity;
     float3 down_sky_color;
-    float down_sky_intensity;
     float3 sun_color;
-    float sun_intensity;
     float3 sun_direction;
     float sun_size;
     uint32_t recursive_portal_count;
@@ -83,8 +80,7 @@ float3 ray_color(inout uint32_t state, Ray ray)
             ray.origin = hit.position + hit.normal * 0.001;
             ray.direction = normalize(hit.normal + random_direction(state) * 0.999);
 
-            let emitted_light = float3(0.0);
-            incoming_light += emitted_light * ray_color;
+            incoming_light += hit.emissive_color * ray_color;
             ray_color *= hit.color;
         }
         else
@@ -99,11 +95,9 @@ float3 ray_color(inout uint32_t state, Ray ray)
 
 float3 skybox(Ray ray)
 {
-    let up_color = info.camera.up_sky_color * info.camera.up_sky_intensity;
-    let down_color = info.camera.down_sky_color * info.camera.down_sky_intensity;
-    var color = lerp(down_color, up_color, ray.direction.y * 0.5 + 0.5);
+    var color = lerp(info.camera.down_sky_color, info.camera.up_sky_color, ray.direction.y * 0.5 + 0.5);
     if (acos(dot(info.camera.sun_direction, ray.direction)) < info.camera.sun_size)
-        color = info.camera.sun_color * info.camera.sun_intensity;
+        color = info.camera.sun_color;
     return color;
 }
 

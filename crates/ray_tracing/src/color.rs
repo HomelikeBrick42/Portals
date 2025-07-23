@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
+use std::ops::Mul;
 
 #[derive(Debug, Clone, Copy, Zeroable, Pod, Serialize, Deserialize)]
 #[repr(C)]
@@ -7,6 +8,18 @@ pub struct Color {
     pub r: f32,
     pub g: f32,
     pub b: f32,
+}
+
+impl Mul<f32> for Color {
+    type Output = Color;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self {
+            r: self.r * rhs,
+            g: self.g * rhs,
+            b: self.b * rhs,
+        }
+    }
 }
 
 impl AsRef<[f32; 3]> for Color {

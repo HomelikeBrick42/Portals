@@ -10,11 +10,8 @@ pub use color::*;
 pub struct GpuCamera {
     pub transform: Transform,
     pub up_sky_color: Color,
-    pub up_sky_intensity: f32,
     pub down_sky_color: Color,
-    pub down_sky_intensity: f32,
     pub sun_color: Color,
-    pub sun_intensity: f32,
     pub sun_direction: Vector3,
     pub sun_size: f32,
     pub recursive_portal_count: u32,
@@ -34,12 +31,14 @@ pub struct GpuSceneInfo {
 #[derive(Debug, Clone, Copy, ShaderType)]
 pub struct GpuPlane {
     pub transform: Transform,
-    pub color: Color,
     pub width: f32,
     pub height: f32,
     pub checker_count_x: u32,
     pub checker_count_z: u32,
+    pub color: Color,
     pub checker_darkness: f32,
+    pub emissive_color: Color,
+    pub emissive_checker_darkness: f32,
     pub front_portal: GpuPortalConnection,
     pub back_portal: GpuPortalConnection,
 }

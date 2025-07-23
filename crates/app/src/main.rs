@@ -81,16 +81,23 @@ impl Default for State {
                 xy_rotation: 0.0,
                 yz_rotation: 0.0,
                 xz_rotation: 0.0,
+                width: 10.0,
+                height: 10.0,
+                checker_count_x: 10,
+                checker_count_z: 10,
                 color: Color {
                     r: 1.0,
                     g: 0.0,
                     b: 0.0,
                 },
-                width: 10.0,
-                height: 10.0,
-                checker_count_x: 10,
-                checker_count_z: 10,
                 checker_darkness: 0.5,
+                emissive_color: Color {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                },
+                emission_intensity: 0.0,
+                emissive_checker_darkness: 0.5,
                 front_portal: PortalConnection::default(),
                 back_portal: PortalConnection::default(),
             }],
@@ -205,7 +212,7 @@ impl eframe::App for App {
                         .changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Up Sky Intensity");
+                    ui.label("Up Sky Intensity:");
                     camera_changed |= ui
                         .add(egui::DragValue::new(&mut self.state.up_sky_intensity).speed(0.1))
                         .changed();
@@ -217,7 +224,7 @@ impl eframe::App for App {
                         .changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Down Sky Intensity");
+                    ui.label("Down Sky Intensity:");
                     camera_changed |= ui
                         .add(egui::DragValue::new(&mut self.state.down_sky_intensity).speed(0.1))
                         .changed();
@@ -229,7 +236,7 @@ impl eframe::App for App {
                         .changed();
                 });
                 ui.horizontal(|ui| {
-                    ui.label("Sun Intensity");
+                    ui.label("Sun Intensity:");
                     camera_changed |= ui
                         .add(egui::DragValue::new(&mut self.state.sun_intensity).speed(0.1))
                         .changed();
@@ -290,11 +297,6 @@ impl eframe::App for App {
                                 camera_changed |= ui.drag_angle(&mut plane.xz_rotation).changed();
                             });
                             ui.horizontal(|ui| {
-                                ui.label("Color:");
-                                camera_changed |=
-                                    ui.color_edit_button_rgb(plane.color.as_mut()).changed();
-                            });
-                            ui.horizontal(|ui| {
                                 ui.label("Size:");
                                 camera_changed |= ui
                                     .add(
@@ -329,9 +331,38 @@ impl eframe::App for App {
                                 plane.checker_count_z = plane.checker_count_z.max(1);
                             });
                             ui.horizontal(|ui| {
+                                ui.label("Color:");
+                                camera_changed |=
+                                    ui.color_edit_button_rgb(plane.color.as_mut()).changed();
+                            });
+                            ui.horizontal(|ui| {
                                 ui.label("Checker Darkness:");
                                 camera_changed |= ui
                                     .add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0))
+                                    .changed();
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Emssive Color:");
+                                camera_changed |= ui
+                                    .color_edit_button_rgb(plane.emissive_color.as_mut())
+                                    .changed();
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Emission Intensity:");
+                                camera_changed |= ui
+                                    .add(
+                                        egui::DragValue::new(&mut plane.emission_intensity)
+                                            .speed(0.1),
+                                    )
+                                    .changed();
+                            });
+                            ui.horizontal(|ui| {
+                                ui.label("Emissive Checker Darkness:");
+                                camera_changed |= ui
+                                    .add(egui::Slider::new(
+                                        &mut plane.emissive_checker_darkness,
+                                        0.0..=1.0,
+                                    ))
                                     .changed();
                             });
                             fn ui_portal_connection(
@@ -520,12 +551,10 @@ impl eframe::App for App {
                             height: rect.height() as u32,
                             camera: GpuCamera {
                                 transform: self.state.camera.transform(),
-                                up_sky_color: self.state.up_sky_color,
-                                up_sky_intensity: self.state.up_sky_intensity,
-                                down_sky_color: self.state.down_sky_color,
-                                down_sky_intensity: self.state.down_sky_intensity,
-                                sun_color: self.state.sun_color,
-                                sun_intensity: self.state.sun_intensity,
+                                up_sky_color: self.state.up_sky_color * self.state.up_sky_intensity,
+                                down_sky_color: self.state.down_sky_color
+                                    * self.state.down_sky_intensity,
+                                sun_color: self.state.sun_color * self.state.sun_intensity,
                                 sun_direction: self.state.sun_direction.normalised(),
                                 sun_size: self.state.sun_size,
                                 recursive_portal_count: self.state.recursive_portal_count,
