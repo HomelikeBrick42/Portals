@@ -1,27 +1,24 @@
 use eframe::{egui, wgpu};
 use egui_file_dialog::FileDialog;
-use math::{Transform, Vector3};
+use math::{Rotor, Transform, Vector3};
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use serde::{Deserialize, Serialize};
-use std::{
-    f32::consts::{PI, TAU},
-    time::Instant,
-};
+use std::{f32::consts::PI, time::Instant};
 
+mod camera;
 mod plane;
 mod ray;
 
+pub use camera::*;
 pub use plane::*;
 pub use ray::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 struct State {
     info_window_open: bool,
     camera_window_open: bool,
-    camera_transform: Transform,
-    camera_speed: f32,
-    camera_rotation_speed: f32,
+    camera: Camera,
     up_sky_color: Color,
     down_sky_color: Color,
     sun_size: f32,
@@ -39,9 +36,12 @@ impl Default for State {
         Self {
             info_window_open: true,
             camera_window_open: true,
-            camera_transform: Transform::translation(Vector3::UP * 1.1),
-            camera_speed: 2.0,
-            camera_rotation_speed: 0.25,
+            camera: Camera {
+                position: Vector3::UP * 1.1,
+                rotation: Rotor::IDENTITY,
+                speed: 2.0,
+                rotation_speed: 0.25,
+            },
             up_sky_color: Color {
                 r: 0.4,
                 g: 0.5,
@@ -189,53 +189,7 @@ impl eframe::App for App {
             .open(&mut self.state.camera_window_open)
             .scroll(true)
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Position:");
-                    let original = self.state.camera_transform.transform_point(Vector3::ZERO);
-                    let mut position = original;
-                    if ui_vector3(ui, &mut position).changed() {
-                        self.state.camera_transform = Transform::translation(position - original)
-                            .then(self.state.camera_transform);
-                    }
-                });
-                ui.add_enabled_ui(false, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("Forward:");
-                        let mut forward = self
-                            .state
-                            .camera_transform
-                            .rotor_part()
-                            .rotate(Vector3::FORWARD);
-                        ui_vector3(ui, &mut forward);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Up:");
-                        let mut up = self.state.camera_transform.rotor_part().rotate(Vector3::UP);
-                        ui_vector3(ui, &mut up);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("Right:");
-                        let mut right = self
-                            .state
-                            .camera_transform
-                            .rotor_part()
-                            .rotate(Vector3::RIGHT);
-                        ui_vector3(ui, &mut right);
-                    });
-                });
-                ui.collapsing("Transform", |ui| {
-                    ui.add_enabled_ui(false, |ui| {
-                        ui_transform(ui, &mut self.state.camera_transform);
-                    });
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Camera Speed:");
-                    ui.add(egui::DragValue::new(&mut self.state.camera_speed).speed(0.1));
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Camera Rotation Speed:");
-                    ui.add(egui::DragValue::new(&mut self.state.camera_rotation_speed).speed(0.1));
-                });
+                self.state.camera.ui(ui);
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
                     ui.color_edit_button_rgb(self.state.up_sky_color.as_mut());
@@ -431,59 +385,9 @@ impl eframe::App for App {
 
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
-                let old_camera_transform = self.state.camera_transform;
-
-                {
-                    let forward = i.key_down(egui::Key::W) as u8 as f32;
-                    let backward = i.key_down(egui::Key::S) as u8 as f32;
-                    let up = i.key_down(egui::Key::E) as u8 as f32;
-                    let down = i.key_down(egui::Key::Q) as u8 as f32;
-                    let left = i.key_down(egui::Key::A) as u8 as f32;
-                    let right = i.key_down(egui::Key::D) as u8 as f32;
-
-                    let boost = i.modifiers.shift as u8 as f32 + 1.0;
-
-                    let movement = Vector3 {
-                        x: forward - backward,
-                        y: up - down,
-                        z: right - left,
-                    }
-                    .normalised();
-
-                    self.state.camera_transform = self.state.camera_transform.then(
-                        Transform::translation(movement * self.state.camera_speed * boost * ts),
-                    );
-                }
-
-                {
-                    let up = i.key_down(egui::Key::ArrowUp) as u8 as f32;
-                    let down = i.key_down(egui::Key::ArrowDown) as u8 as f32;
-                    let left = i.key_down(egui::Key::ArrowLeft) as u8 as f32;
-                    let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
-
-                    let vertical = up - down;
-                    self.state.camera_transform =
-                        self.state.camera_transform.then(Transform::rotation_xy(
-                            vertical * self.state.camera_rotation_speed * TAU * ts,
-                        ));
-
-                    if i.modifiers.shift {
-                        let roll = right - left;
-                        self.state.camera_transform =
-                            self.state.camera_transform.then(Transform::rotation_yz(
-                                roll * self.state.camera_rotation_speed * TAU * ts,
-                            ));
-                    } else {
-                        let horizontal = right - left;
-                        self.state.camera_transform =
-                            self.state.camera_transform.then(Transform::rotation_xz(
-                                horizontal * self.state.camera_rotation_speed * TAU * ts,
-                            ));
-                    }
-                }
-
-                let old_position = old_camera_transform.transform_point(Vector3::ZERO);
-                let new_position = self.state.camera_transform.transform_point(Vector3::ZERO);
+                let old_position = self.state.camera.position;
+                self.state.camera.update(i, ts);
+                let new_position = self.state.camera.position;
 
                 let ray = Ray {
                     origin: old_position,
@@ -518,19 +422,16 @@ impl eframe::App for App {
                         && hit.front
                     {
                         let other_plane = &self.state.planes[other_index];
-                        self.state.camera_transform = other_plane
-                            .transform()
-                            .then(plane.transform().reverse())
-                            .then(self.state.camera_transform);
-                        println!("front teleport {}", hit.distance);
+                        let transform = other_plane.transform().then(plane.transform().reverse());
+                        self.state.camera.position =
+                            transform.transform_point(self.state.camera.position);
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
                         let other_plane = &self.state.planes[other_index];
-                        self.state.camera_transform = other_plane
-                            .transform()
-                            .then(plane.transform().reverse())
-                            .then(self.state.camera_transform);
+                        let transform = other_plane.transform().then(plane.transform().reverse());
+                        self.state.camera.position =
+                            transform.transform_point(self.state.camera.position);
                     }
                 }
             });
@@ -549,7 +450,7 @@ impl eframe::App for App {
                             width: rect.width() as u32,
                             height: rect.height() as u32,
                             camera: GpuCamera {
-                                transform: self.state.camera_transform,
+                                transform: self.state.camera.transform(),
                                 up_sky_color: self.state.up_sky_color,
                                 down_sky_color: self.state.down_sky_color,
                                 sun_size: self.state.sun_size,
@@ -572,7 +473,7 @@ impl eframe::App for App {
     }
 }
 
-fn ui_transform(
+pub fn ui_transform(
     ui: &mut egui::Ui,
     Transform {
         s,
@@ -595,7 +496,7 @@ fn ui_transform(
         | ui.add(egui::DragValue::new(e0123).prefix("e0123:").speed(0.1))
 }
 
-fn ui_vector3(ui: &mut egui::Ui, Vector3 { x, y, z }: &mut Vector3) -> egui::Response {
+pub fn ui_vector3(ui: &mut egui::Ui, Vector3 { x, y, z }: &mut Vector3) -> egui::Response {
     ui.add(egui::DragValue::new(x).prefix("x:").speed(0.1))
         | ui.add(egui::DragValue::new(y).prefix("y:").speed(0.1))
         | ui.add(egui::DragValue::new(z).prefix("z:").speed(0.1))

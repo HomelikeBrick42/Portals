@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Hit, Ray};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Plane {
     pub name: String,
@@ -22,7 +22,7 @@ pub struct Plane {
     pub back_portal: PortalConnection,
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct PortalConnection {
     pub other_index: Option<usize>,
     pub flip: bool,
