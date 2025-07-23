@@ -18,6 +18,7 @@ pub struct GpuCamera {
     pub sun_direction: Vector3,
     pub sun_size: f32,
     pub recursive_portal_count: u32,
+    pub max_bounces: u32,
 }
 
 #[derive(Debug, Clone, Copy, ShaderType)]

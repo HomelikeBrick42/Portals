@@ -24,7 +24,6 @@ float3 random_direction(inout uint32_t state)
 float3 random_direction_in_hemisphere(inout uint32_t state, float3 normal)
 {
     var direction = random_direction(state);
-    if (dot(direction, normal) < 0.0)
-        direction *= -1.0;
+    direction *= sign(dot(direction, normal));
     return direction;
 }

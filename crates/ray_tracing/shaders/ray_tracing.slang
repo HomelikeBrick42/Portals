@@ -20,6 +20,7 @@ struct Camera
     float3 sun_direction;
     float sun_size;
     uint32_t recursive_portal_count;
+    uint32_t max_bounces;
 }
 
 struct SceneInfo
@@ -61,25 +62,39 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
     ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
 
-    let hit = trace_ray(ray);
-
-    var color = skybox(ray);
-
-    if (hit.hasValue)
-    {
-        let hit = hit.value;
-
-        var sun_ray : Ray;
-        sun_ray.origin = hit.position + hit.normal * 0.001;
-        sun_ray.direction = info.camera.sun_direction;
-
-        let sun_hit = trace_ray(sun_ray);
-        let sun_light = float(!sun_hit.hasValue) * info.camera.sun_color * info.camera.sun_intensity * max(dot(hit.normal, info.camera.sun_direction), 0.0);
-        color = hit.color * sun_light;
-    }
+    var color = ray_color(state, ray);
 
     let old_color = main_texture.Load(global_index.xy).rgb;
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
+}
+
+float3 ray_color(inout uint32_t state, Ray ray)
+{
+    var incoming_light = float3(0.0);
+    var ray_color = float3(1.0);
+
+    for (var i = 0u; i < info.camera.max_bounces; i++)
+    {
+        let hit = trace_ray(ray);
+        if (hit.hasValue)
+        {
+            let hit = hit.value;
+
+            ray.origin = hit.position + hit.normal * 0.001;
+            ray.direction = normalize(hit.normal + random_direction(state) * 0.999);
+
+            let emitted_light = float3(0.0);
+            incoming_light += emitted_light * ray_color;
+            ray_color *= hit.color;
+        }
+        else
+        {
+            incoming_light += skybox(ray) * ray_color;
+            break;
+        }
+    }
+
+    return incoming_light;
 }
 
 float3 skybox(Ray ray)
@@ -95,7 +110,7 @@ float3 skybox(Ray ray)
 Optional<Hit> trace_ray(inout Ray ray)
 {
     var result_hit = intersect_scene(ray);
-    for (var i = 0; i < info.camera.recursive_portal_count; i++)
+    for (var i = 0u; i < info.camera.recursive_portal_count; i++)
     {
         if (!result_hit.hasValue)
             break;

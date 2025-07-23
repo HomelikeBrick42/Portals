@@ -28,6 +28,7 @@ struct State {
     sun_direction: Vector3,
     sun_size: f32,
     recursive_portal_count: u32,
+    max_bounces: u32,
     planes_window_open: bool,
     planes: Vec<Plane>,
 }
@@ -68,6 +69,7 @@ impl Default for State {
                 z: 0.2,
             },
             recursive_portal_count: 10,
+            max_bounces: 3,
             planes_window_open: true,
             planes: vec![Plane {
                 name: "Ground".into(),
@@ -245,6 +247,12 @@ impl eframe::App for App {
                     ui.label("Recursive Portal Count:");
                     camera_changed |= ui
                         .add(egui::DragValue::new(&mut self.state.recursive_portal_count))
+                        .changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max Bounces:");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.state.max_bounces))
                         .changed();
                 });
             });
@@ -521,6 +529,7 @@ impl eframe::App for App {
                                 sun_direction: self.state.sun_direction.normalised(),
                                 sun_size: self.state.sun_size,
                                 recursive_portal_count: self.state.recursive_portal_count,
+                                max_bounces: self.state.max_bounces,
                             },
                             accumulated_frames: self.accumulated_frames,
                             random_seed: rand::Rng::random(
