@@ -62,7 +62,7 @@ impl Default for State {
                 g: 1.0,
                 b: 1.0,
             },
-            sun_intensity: 1.0,
+            sun_intensity: 100.0,
             sun_direction: Vector3 {
                 x: 0.4,
                 y: 1.0,
