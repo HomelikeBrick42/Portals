@@ -406,10 +406,13 @@ impl eframe::App for App {
             });
 
         self.file_dialog.update(ctx);
-        if let Some(path) = self.file_dialog.take_picked() {
+        if let Some(mut path) = self.file_dialog.take_picked() {
             match std::mem::replace(&mut self.file_interaction, FileInteraction::None) {
                 FileInteraction::None => {}
                 FileInteraction::Save => {
+                    if path.extension().is_none() {
+                        path.set_extension("scene");
+                    }
                     let state = serde_json::to_string(&self.state).unwrap();
                     _ = std::fs::write(path, state);
                 }
