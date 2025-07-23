@@ -3,7 +3,7 @@ use egui_file_dialog::FileDialog;
 use math::{Rotor, Transform, Vector3};
 use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
 use serde::{Deserialize, Serialize};
-use std::{f32::consts::PI, time::Instant};
+use std::{f32::consts::PI, sync::Arc, time::Instant};
 
 mod camera;
 mod plane;
@@ -107,6 +107,7 @@ struct App {
     state: State,
     file_dialog: FileDialog,
     file_interaction: FileInteraction,
+    accumulated_frames: u32,
 }
 
 enum FileInteraction {
@@ -142,6 +143,7 @@ impl App {
                 .add_save_extension("Scene", "scene")
                 .default_save_extension("Scene"),
             file_interaction: FileInteraction::None,
+            accumulated_frames: 0,
         }
     }
 }
@@ -174,6 +176,7 @@ impl eframe::App for App {
             });
             if reset_everything {
                 self.state = State::default();
+                self.accumulated_frames = 0;
             }
         }
 
@@ -189,7 +192,16 @@ impl eframe::App for App {
             .open(&mut self.state.camera_window_open)
             .scroll(true)
             .show(ctx, |ui| {
-                self.state.camera.ui(ui);
+                if self.state.camera.ui(ui) {
+                    self.accumulated_frames = 0;
+                }
+                ui.horizontal(|ui| {
+                    ui.label("Accumulated Frames:");
+                    ui.add_enabled(false, egui::DragValue::new(&mut self.accumulated_frames));
+                    if ui.button("Clear").clicked() {
+                        self.accumulated_frames = 0;
+                    }
+                });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
                     ui.color_edit_button_rgb(self.state.up_sky_color.as_mut());
@@ -378,6 +390,7 @@ impl eframe::App for App {
                         && let Ok(state) = serde_json::from_str(&s)
                     {
                         self.state = state;
+                        self.accumulated_frames = 0;
                     }
                 }
             }
@@ -386,7 +399,9 @@ impl eframe::App for App {
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
                 let old_position = self.state.camera.position;
-                self.state.camera.update(i, ts);
+                if self.state.camera.update(i, ts) {
+                    self.accumulated_frames = 0;
+                }
                 let new_position = self.state.camera.position;
 
                 let ray = Ray {
@@ -427,6 +442,7 @@ impl eframe::App for App {
                             transform.transform_point(self.state.camera.position);
                         self.state.camera.rotation =
                             transform.rotor_part().then(self.state.camera.rotation);
+                        self.accumulated_frames = 0;
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
@@ -436,6 +452,7 @@ impl eframe::App for App {
                             transform.transform_point(self.state.camera.position);
                         self.state.camera.rotation =
                             transform.rotor_part().then(self.state.camera.rotation);
+                        self.accumulated_frames = 0;
                     }
                 }
             });
@@ -464,9 +481,11 @@ impl eframe::App for App {
                                 ambient_color: self.state.ambient_color,
                                 recursive_portal_count: self.state.recursive_portal_count,
                             },
+                            accumulated_frames: self.accumulated_frames,
                             planes: self.state.planes.iter().map(Plane::to_gpu).collect(),
                         },
                     ));
+                self.accumulated_frames += 1;
             });
 
         ctx.request_repaint();
@@ -514,6 +533,18 @@ fn main() -> eframe::Result<()> {
             renderer: eframe::Renderer::Wgpu,
             wgpu_options: eframe::egui_wgpu::WgpuConfiguration {
                 present_mode: wgpu::PresentMode::AutoNoVsync,
+                wgpu_setup: eframe::egui_wgpu::WgpuSetup::CreateNew(
+                    eframe::egui_wgpu::WgpuSetupCreateNew {
+                        device_descriptor: Arc::new(|adapter| wgpu::DeviceDescriptor {
+                            label: Some("egui wgpu device"),
+                            required_features: wgpu::Features::default(),
+                            required_limits: adapter.limits(),
+                            memory_hints: wgpu::MemoryHints::default(),
+                            trace: wgpu::Trace::Off,
+                        }),
+                        ..Default::default()
+                    },
+                ),
                 ..Default::default()
             },
             ..Default::default()

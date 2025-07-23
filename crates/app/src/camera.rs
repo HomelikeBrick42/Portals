@@ -17,10 +17,11 @@ impl Camera {
         Transform::translation(self.position).then(Transform::from_rotor(self.rotation))
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
+    pub fn ui(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut changed = false;
         ui.horizontal(|ui| {
             ui.label("Position:");
-            ui_vector3(ui, &mut self.position);
+            changed |= ui_vector3(ui, &mut self.position).changed();
         });
         ui.add_enabled_ui(false, |ui| {
             ui.horizontal(|ui| {
@@ -52,9 +53,12 @@ impl Camera {
             ui.label("Camera Rotation Speed:");
             ui.add(egui::DragValue::new(&mut self.rotation_speed).speed(0.1));
         });
+        changed
     }
 
-    pub fn update(&mut self, i: &egui::InputState, ts: f32) {
+    pub fn update(&mut self, i: &egui::InputState, ts: f32) -> bool {
+        let mut changed = false;
+
         {
             let forward = i.key_down(egui::Key::W) as u8 as f32;
             let backward = i.key_down(egui::Key::S) as u8 as f32;
@@ -62,6 +66,13 @@ impl Camera {
             let down = i.key_down(egui::Key::Q) as u8 as f32;
             let left = i.key_down(egui::Key::A) as u8 as f32;
             let right = i.key_down(egui::Key::D) as u8 as f32;
+
+            changed |= forward != 0.0
+                || backward != 0.0
+                || up != 0.0
+                || down != 0.0
+                || left != 0.0
+                || right != 0.0;
 
             let boost = i.modifiers.shift as u8 as f32 + 1.0;
 
@@ -80,6 +91,8 @@ impl Camera {
             let down = i.key_down(egui::Key::ArrowDown) as u8 as f32;
             let left = i.key_down(egui::Key::ArrowLeft) as u8 as f32;
             let right = i.key_down(egui::Key::ArrowRight) as u8 as f32;
+
+            changed |= up != 0.0 || down != 0.0 || left != 0.0 || right != 0.0;
 
             let vertical = up - down;
             self.rotation = self.rotation.then(Rotor::rotation_xy(
@@ -100,8 +113,10 @@ impl Camera {
         }
 
         if (self.rotation.magnitude() - 1.0).abs() > 0.001 {
-            println!("normalising camera rotation");
             self.rotation = self.rotation.normalised();
+            changed |= true;
         }
+
+        changed
     }
 }

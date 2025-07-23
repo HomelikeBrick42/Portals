@@ -23,6 +23,7 @@ pub struct GpuCamera {
 pub struct GpuSceneInfo {
     pub camera: GpuCamera,
     pub aspect: f32,
+    pub accumulated_frames: u32,
     pub plane_count: u32,
 }
 
@@ -353,6 +354,7 @@ pub struct RayTracingPaintCallback {
     pub width: u32,
     pub height: u32,
     pub camera: GpuCamera,
+    pub accumulated_frames: u32,
     pub planes: Vec<GpuPlane>,
 }
 
@@ -392,6 +394,7 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
             let scene_info = GpuSceneInfo {
                 camera: self.camera,
                 aspect: self.width as f32 / self.height as f32,
+                accumulated_frames: self.accumulated_frames,
                 plane_count: self.planes.len() as _,
             };
 

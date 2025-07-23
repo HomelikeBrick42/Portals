@@ -24,6 +24,7 @@ struct SceneInfo
 {
     Camera camera;
     float aspect;
+    uint32_t accumulated_frames;
     uint32_t plane_count;
 }
 
