@@ -26,6 +26,8 @@ struct SceneInfo
     float aspect;
     uint32_t accumulated_frames;
     uint32_t random_seed;
+    uint32_t render_type;
+    uint32_t antialiasing;
     uint32_t plane_count;
 }
 
@@ -48,7 +50,10 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 
     var state = info.random_seed + global_index.x * 90359791 + global_index.y * 29705237;
 
-    let uv = ((float2(global_index.xy) + float2(random_value(state), random_value(state))) / float2(width, height)) * 2.0 - 1.0;
+    var uv_nudge = float2(0.5);
+    if (info.antialiasing != 0)
+        uv_nudge = float2(random_value(state), random_value(state));
+    let uv = ((float2(global_index.xy) + uv_nudge) / float2(width, height)) * 2.0 - 1.0;
 
     let forward = float3(1.0, 0.0, 0.0);
     let up = float3(0.0, 1.0, 0.0);
@@ -59,13 +64,22 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
     ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
 
-    var color = ray_color(state, ray);
+    var color = float3(1.0, 0.0, 1.0);
+    switch (info.render_type)
+    {
+    case 0:
+        color = ray_color_unlit(state, ray);
+        break;
+    case 1:
+        color = ray_color_lit(state, ray);
+        break;
+    }
 
     let old_color = main_texture.Load(global_index.xy).rgb;
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
 }
 
-float3 ray_color(inout uint32_t state, Ray ray)
+float3 ray_color_lit(inout uint32_t state, Ray ray)
 {
     var incoming_light = float3(0.0);
     var ray_color = float3(1.0);
@@ -91,6 +105,20 @@ float3 ray_color(inout uint32_t state, Ray ray)
     }
 
     return incoming_light;
+}
+
+float3 ray_color_unlit(inout uint32_t state, Ray ray)
+{
+    let hit = trace_ray(ray);
+    if (hit.hasValue)
+    {
+        let hit = hit.value;
+        return hit.color + hit.emissive_color;
+    }
+    else
+    {
+        return skybox(ray);
+    }
 }
 
 float3 skybox(Ray ray)

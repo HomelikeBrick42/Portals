@@ -18,12 +18,17 @@ pub struct GpuCamera {
     pub max_bounces: u32,
 }
 
+pub const RENDER_TYPE_UNLIT: u32 = 0;
+pub const RENDER_TYPE_LIT: u32 = 1;
+
 #[derive(Debug, Clone, Copy, ShaderType)]
 pub struct GpuSceneInfo {
     pub camera: GpuCamera,
     pub aspect: f32,
     pub accumulated_frames: u32,
     pub random_seed: u32,
+    pub render_type: u32,
+    pub antialiasing: u32,
     pub plane_count: u32,
 }
 
@@ -358,6 +363,8 @@ pub struct RayTracingPaintCallback {
     pub camera: GpuCamera,
     pub accumulated_frames: u32,
     pub random_seed: u32,
+    pub render_type: u32,
+    pub antialiasing: bool,
     pub planes: Vec<GpuPlane>,
 }
 
@@ -399,6 +406,8 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
                 aspect: self.width as f32 / self.height as f32,
                 accumulated_frames: self.accumulated_frames,
                 random_seed: self.random_seed,
+                render_type: self.render_type,
+                antialiasing: self.antialiasing as u32,
                 plane_count: self.planes.len() as _,
             };
 

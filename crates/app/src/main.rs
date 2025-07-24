@@ -1,7 +1,10 @@
 use eframe::{egui, wgpu};
 use egui_file_dialog::FileDialog;
 use math::{Rotor, Transform, Vector3};
-use ray_tracing::{Color, GpuCamera, RayTracingPaintCallback, RayTracingRenderer};
+use ray_tracing::{
+    Color, GpuCamera, RENDER_TYPE_LIT, RENDER_TYPE_UNLIT, RayTracingPaintCallback,
+    RayTracingRenderer,
+};
 use serde::{Deserialize, Serialize};
 use std::{f32::consts::PI, sync::Arc, time::Instant};
 
@@ -13,11 +16,43 @@ pub use camera::*;
 pub use plane::*;
 pub use ray::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+enum RenderType {
+    Unlit,
+    Lit,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(default)]
-struct State {
+struct RenderSettings {
     info_window_open: bool,
     camera_window_open: bool,
+    render_settings_window_open: bool,
+    planes_window_open: bool,
+    render_type: RenderType,
+    antialiasing: bool,
+    recursive_portal_count: u32,
+    max_bounces: u32,
+}
+
+impl Default for RenderSettings {
+    fn default() -> Self {
+        Self {
+            info_window_open: true,
+            camera_window_open: true,
+            render_settings_window_open: true,
+            planes_window_open: true,
+            render_type: RenderType::Unlit,
+            antialiasing: true,
+            recursive_portal_count: 10,
+            max_bounces: 3,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(default)]
+struct Scene {
     camera: Camera,
     up_sky_color: Color,
     up_sky_intensity: f32,
@@ -27,17 +62,12 @@ struct State {
     sun_intensity: f32,
     sun_direction: Vector3,
     sun_size: f32,
-    recursive_portal_count: u32,
-    max_bounces: u32,
-    planes_window_open: bool,
     planes: Vec<Plane>,
 }
 
-impl Default for State {
+impl Default for Scene {
     fn default() -> Self {
         Self {
-            info_window_open: true,
-            camera_window_open: true,
             camera: Camera {
                 position: Vector3::UP * 1.1,
                 rotation: Rotor::IDENTITY,
@@ -68,9 +98,6 @@ impl Default for State {
                 y: 1.0,
                 z: 0.2,
             },
-            recursive_portal_count: 10,
-            max_bounces: 3,
-            planes_window_open: true,
             planes: vec![Plane {
                 name: "Ground".into(),
                 position: Vector3 {
@@ -107,7 +134,8 @@ impl Default for State {
 
 struct App {
     last_time: Option<Instant>,
-    state: State,
+    scene: Scene,
+    render_settings: RenderSettings,
     file_dialog: FileDialog,
     file_interaction: FileInteraction,
     accumulated_frames: u32,
@@ -135,9 +163,14 @@ impl App {
 
         Self {
             last_time: None,
-            state: cc
+            scene: cc
                 .storage
-                .and_then(|storage| storage.get_string("State"))
+                .and_then(|storage| storage.get_string("Scene"))
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default(),
+            render_settings: cc
+                .storage
+                .and_then(|storage| storage.get_string("RenderSettings"))
                 .and_then(|s| serde_json::from_str(&s).ok())
                 .unwrap_or_default(),
             file_dialog: FileDialog::new()
@@ -174,30 +207,76 @@ impl eframe::App for App {
                         self.file_interaction = FileInteraction::Save;
                         self.file_dialog.save_file();
                     }
-                    self.state.info_window_open |= ui.button("Info").clicked();
-                    self.state.camera_window_open |= ui.button("Camera").clicked();
-                    self.state.planes_window_open |= ui.button("Planes").clicked();
+                    self.render_settings.info_window_open |= ui.button("Info").clicked();
+                    self.render_settings.render_settings_window_open |=
+                        ui.button("Render Settings").clicked();
+                    self.render_settings.camera_window_open |= ui.button("Camera").clicked();
+                    self.render_settings.planes_window_open |= ui.button("Planes").clicked();
                 });
             });
             if reset_everything {
-                self.state = State::default();
+                self.scene = Scene::default();
                 camera_changed = true;
             }
         }
 
         egui::Window::new("Info")
             .resizable(false)
-            .open(&mut self.state.info_window_open)
+            .open(&mut self.render_settings.info_window_open)
             .show(ctx, |ui| {
                 ui.label(format!("FPS: {:.3}", 1.0 / dt.as_secs_f64()));
                 ui.label(format!("Frame Time: {:.3}ms", dt.as_secs_f64() * 1000.0));
             });
 
-        egui::Window::new("Camera")
-            .open(&mut self.state.camera_window_open)
+        egui::Window::new("Render Settings")
+            .open(&mut self.render_settings.render_settings_window_open)
             .scroll(true)
             .show(ctx, |ui| {
-                camera_changed |= self.state.camera.ui(ui);
+                ui.horizontal(|ui| {
+                    ui.label("Render Type:");
+                    let name = |render_type: &RenderType| match render_type {
+                        RenderType::Unlit => "Unlit",
+                        RenderType::Lit => "Lit",
+                    };
+                    egui::ComboBox::new("Render Type", "")
+                        .selected_text(name(&self.render_settings.render_type))
+                        .show_ui(ui, |ui| {
+                            camera_changed |= ui
+                                .selectable_value(
+                                    &mut self.render_settings.render_type,
+                                    RenderType::Unlit,
+                                    name(&RenderType::Unlit),
+                                )
+                                .changed();
+                            camera_changed |= ui
+                                .selectable_value(
+                                    &mut self.render_settings.render_type,
+                                    RenderType::Lit,
+                                    name(&RenderType::Lit),
+                                )
+                                .changed();
+                        });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Anti-aliasing:");
+                    camera_changed |= ui
+                        .checkbox(&mut self.render_settings.antialiasing, "")
+                        .changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max Portal Recursion:");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(
+                            &mut self.render_settings.recursive_portal_count,
+                        ))
+                        .changed();
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max Light Bounces:");
+                    camera_changed |= ui
+                        .add(egui::DragValue::new(&mut self.render_settings.max_bounces))
+                        .changed();
+                });
                 ui.horizontal(|ui| {
                     ui.label("Accumulated Frames:");
                     ui.add_enabled(false, egui::DragValue::new(&mut self.accumulated_frames));
@@ -205,80 +284,75 @@ impl eframe::App for App {
                         self.accumulated_frames = 0;
                     }
                 });
+            });
+
+        egui::Window::new("Camera")
+            .open(&mut self.render_settings.camera_window_open)
+            .scroll(true)
+            .show(ctx, |ui| {
+                camera_changed |= self.scene.camera.ui(ui);
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
                     camera_changed |= ui
-                        .color_edit_button_rgb(self.state.up_sky_color.as_mut())
+                        .color_edit_button_rgb(self.scene.up_sky_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Intensity:");
                     camera_changed |= ui
-                        .add(egui::DragValue::new(&mut self.state.up_sky_intensity).speed(0.1))
+                        .add(egui::DragValue::new(&mut self.scene.up_sky_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Color:");
                     camera_changed |= ui
-                        .color_edit_button_rgb(self.state.down_sky_color.as_mut())
+                        .color_edit_button_rgb(self.scene.down_sky_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Intensity:");
                     camera_changed |= ui
-                        .add(egui::DragValue::new(&mut self.state.down_sky_intensity).speed(0.1))
+                        .add(egui::DragValue::new(&mut self.scene.down_sky_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Color:");
                     camera_changed |= ui
-                        .color_edit_button_rgb(self.state.sun_color.as_mut())
+                        .color_edit_button_rgb(self.scene.sun_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Intensity:");
                     camera_changed |= ui
-                        .add(egui::DragValue::new(&mut self.state.sun_intensity).speed(0.1))
+                        .add(egui::DragValue::new(&mut self.scene.sun_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Angular Radius:");
-                    camera_changed |= ui.drag_angle(&mut self.state.sun_size).changed();
-                    self.state.sun_size = self.state.sun_size.clamp(0.0, PI);
+                    camera_changed |= ui.drag_angle(&mut self.scene.sun_size).changed();
+                    self.scene.sun_size = self.scene.sun_size.clamp(0.0, PI);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Direction:");
-                    camera_changed |= ui_vector3(ui, &mut self.state.sun_direction).changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Recursive Portal Count:");
-                    camera_changed |= ui
-                        .add(egui::DragValue::new(&mut self.state.recursive_portal_count))
-                        .changed();
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Max Bounces:");
-                    camera_changed |= ui
-                        .add(egui::DragValue::new(&mut self.state.max_bounces))
-                        .changed();
+                    camera_changed |= ui_vector3(ui, &mut self.scene.sun_direction).changed();
                 });
             });
 
         egui::Window::new("Planes")
-            .open(&mut self.state.planes_window_open)
+            .open(&mut self.render_settings.planes_window_open)
             .scroll(true)
             .show(ctx, |ui| {
                 if ui.button("New Plane").clicked() {
-                    self.state.planes.push(Plane::default());
+                    self.scene.planes.push(Plane::default());
                     camera_changed = true;
                 }
 
                 let mut to_delete = vec![];
-                for index in 0..self.state.planes.len() {
-                    egui::CollapsingHeader::new(&self.state.planes[index].name)
+                for index in 0..self.scene.planes.len() {
+                    egui::CollapsingHeader::new(&self.scene.planes[index].name)
                         .id_salt(index)
                         .show(ui, |ui| {
-                            let plane = &mut self.state.planes[index];
+                            let plane = &mut self.scene.planes[index];
                             ui.text_edit_singleline(&mut plane.name);
                             ui.horizontal(|ui| {
                                 ui.label("Position:");
@@ -412,7 +486,7 @@ impl eframe::App for App {
                             ui.collapsing("Front Portal", |ui| {
                                 camera_changed |= ui_portal_connection(
                                     ui,
-                                    &mut self.state.planes,
+                                    &mut self.scene.planes,
                                     index,
                                     |plane| &mut plane.front_portal,
                                 );
@@ -420,7 +494,7 @@ impl eframe::App for App {
                             ui.collapsing("Back Portal", |ui| {
                                 camera_changed |= ui_portal_connection(
                                     ui,
-                                    &mut self.state.planes,
+                                    &mut self.scene.planes,
                                     index,
                                     |plane| &mut plane.back_portal,
                                 );
@@ -432,7 +506,7 @@ impl eframe::App for App {
                         });
                 }
                 for index_to_delete in to_delete.into_iter().rev() {
-                    for (index, plane) in self.state.planes.iter_mut().enumerate() {
+                    for (index, plane) in self.scene.planes.iter_mut().enumerate() {
                         if let Some(front_portal_index) = &mut plane.front_portal.other_index {
                             if *front_portal_index == index_to_delete {
                                 plane.front_portal.other_index = None;
@@ -448,7 +522,7 @@ impl eframe::App for App {
                             }
                         }
                     }
-                    self.state.planes.remove(index_to_delete);
+                    self.scene.planes.remove(index_to_delete);
                 }
             });
 
@@ -460,14 +534,14 @@ impl eframe::App for App {
                     if path.extension().is_none() {
                         path.set_extension("scene");
                     }
-                    let state = serde_json::to_string(&self.state).unwrap();
+                    let state = serde_json::to_string(&self.scene).unwrap();
                     _ = std::fs::write(path, state);
                 }
                 FileInteraction::Load => {
                     if let Ok(s) = std::fs::read_to_string(path)
                         && let Ok(state) = serde_json::from_str(&s)
                     {
-                        self.state = state;
+                        self.scene = state;
                         camera_changed = true;
                     }
                 }
@@ -476,9 +550,9 @@ impl eframe::App for App {
 
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
-                let old_position = self.state.camera.position;
-                camera_changed |= self.state.camera.update(i, ts);
-                let new_position = self.state.camera.position;
+                let old_position = self.scene.camera.position;
+                camera_changed |= self.scene.camera.update(i, ts);
+                let new_position = self.scene.camera.position;
 
                 let ray = Ray {
                     origin: old_position,
@@ -486,7 +560,7 @@ impl eframe::App for App {
                 };
 
                 let closest_hit = self
-                    .state
+                    .scene
                     .planes
                     .iter()
                     .enumerate()
@@ -508,26 +582,26 @@ impl eframe::App for App {
                 if let Some((index, hit)) = closest_hit
                     && hit.distance < (new_position - old_position).magnitude()
                 {
-                    let plane = &self.state.planes[index];
+                    let plane = &self.scene.planes[index];
                     if let Some(other_index) = plane.front_portal.other_index
                         && hit.front
                     {
-                        let other_plane = &self.state.planes[other_index];
+                        let other_plane = &self.scene.planes[other_index];
                         let transform = other_plane.transform().then(plane.transform().reverse());
-                        self.state.camera.position =
-                            transform.transform_point(self.state.camera.position);
-                        self.state.camera.rotation =
-                            transform.rotor_part().then(self.state.camera.rotation);
+                        self.scene.camera.position =
+                            transform.transform_point(self.scene.camera.position);
+                        self.scene.camera.rotation =
+                            transform.rotor_part().then(self.scene.camera.rotation);
                         camera_changed = true;
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
-                        let other_plane = &self.state.planes[other_index];
+                        let other_plane = &self.scene.planes[other_index];
                         let transform = other_plane.transform().then(plane.transform().reverse());
-                        self.state.camera.position =
-                            transform.transform_point(self.state.camera.position);
-                        self.state.camera.rotation =
-                            transform.rotor_part().then(self.state.camera.rotation);
+                        self.scene.camera.position =
+                            transform.transform_point(self.scene.camera.position);
+                        self.scene.camera.rotation =
+                            transform.rotor_part().then(self.scene.camera.rotation);
                         camera_changed = true;
                     }
                 }
@@ -550,15 +624,15 @@ impl eframe::App for App {
                             width: rect.width() as u32,
                             height: rect.height() as u32,
                             camera: GpuCamera {
-                                transform: self.state.camera.transform(),
-                                up_sky_color: self.state.up_sky_color * self.state.up_sky_intensity,
-                                down_sky_color: self.state.down_sky_color
-                                    * self.state.down_sky_intensity,
-                                sun_color: self.state.sun_color * self.state.sun_intensity,
-                                sun_direction: self.state.sun_direction.normalised(),
-                                sun_size: self.state.sun_size,
-                                recursive_portal_count: self.state.recursive_portal_count,
-                                max_bounces: self.state.max_bounces,
+                                transform: self.scene.camera.transform(),
+                                up_sky_color: self.scene.up_sky_color * self.scene.up_sky_intensity,
+                                down_sky_color: self.scene.down_sky_color
+                                    * self.scene.down_sky_intensity,
+                                sun_color: self.scene.sun_color * self.scene.sun_intensity,
+                                sun_direction: self.scene.sun_direction.normalised(),
+                                sun_size: self.scene.sun_size,
+                                recursive_portal_count: self.render_settings.recursive_portal_count,
+                                max_bounces: self.render_settings.max_bounces,
                             },
                             accumulated_frames: self.accumulated_frames,
                             random_seed: rand::Rng::random(
@@ -566,7 +640,12 @@ impl eframe::App for App {
                                     self.accumulated_frames as _,
                                 ),
                             ),
-                            planes: self.state.planes.iter().map(Plane::to_gpu).collect(),
+                            render_type: match self.render_settings.render_type {
+                                RenderType::Unlit => RENDER_TYPE_UNLIT,
+                                RenderType::Lit => RENDER_TYPE_LIT,
+                            },
+                            antialiasing: self.render_settings.antialiasing,
+                            planes: self.scene.planes.iter().map(Plane::to_gpu).collect(),
                         },
                     ));
                 self.accumulated_frames += 1;
@@ -576,7 +655,11 @@ impl eframe::App for App {
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        storage.set_string("State", serde_json::to_string(&self.state).unwrap());
+        storage.set_string("Scene", serde_json::to_string(&self.scene).unwrap());
+        storage.set_string(
+            "RenderSettings",
+            serde_json::to_string(&self.render_settings).unwrap(),
+        );
     }
 }
 
