@@ -192,7 +192,7 @@ impl eframe::App for App {
 
         let ts = dt.as_secs_f32();
 
-        let mut camera_changed = false;
+        let mut rendering_changed = false;
 
         {
             let mut reset_everything = false;
@@ -216,7 +216,7 @@ impl eframe::App for App {
             });
             if reset_everything {
                 self.scene = Scene::default();
-                camera_changed = true;
+                rendering_changed = true;
             }
         }
 
@@ -241,14 +241,14 @@ impl eframe::App for App {
                     egui::ComboBox::new("Render Type", "")
                         .selected_text(name(&self.render_settings.render_type))
                         .show_ui(ui, |ui| {
-                            camera_changed |= ui
+                            rendering_changed |= ui
                                 .selectable_value(
                                     &mut self.render_settings.render_type,
                                     RenderType::Unlit,
                                     name(&RenderType::Unlit),
                                 )
                                 .changed();
-                            camera_changed |= ui
+                            rendering_changed |= ui
                                 .selectable_value(
                                     &mut self.render_settings.render_type,
                                     RenderType::Lit,
@@ -259,13 +259,13 @@ impl eframe::App for App {
                 });
                 ui.horizontal(|ui| {
                     ui.label("Anti-aliasing:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .checkbox(&mut self.render_settings.antialiasing, "")
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Max Portal Recursion:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .add(egui::DragValue::new(
                             &mut self.render_settings.recursive_portal_count,
                         ))
@@ -273,7 +273,7 @@ impl eframe::App for App {
                 });
                 ui.horizontal(|ui| {
                     ui.label("Max Light Bounces:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .add(egui::DragValue::new(&mut self.render_settings.max_bounces))
                         .changed();
                 });
@@ -290,51 +290,51 @@ impl eframe::App for App {
             .open(&mut self.render_settings.camera_window_open)
             .scroll(true)
             .show(ctx, |ui| {
-                camera_changed |= self.scene.camera.ui(ui);
+                rendering_changed |= self.scene.camera.ui(ui);
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Color:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .color_edit_button_rgb(self.scene.up_sky_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Up Sky Intensity:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .add(egui::DragValue::new(&mut self.scene.up_sky_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Color:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .color_edit_button_rgb(self.scene.down_sky_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Down Sky Intensity:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .add(egui::DragValue::new(&mut self.scene.down_sky_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Color:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .color_edit_button_rgb(self.scene.sun_color.as_mut())
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Intensity:");
-                    camera_changed |= ui
+                    rendering_changed |= ui
                         .add(egui::DragValue::new(&mut self.scene.sun_intensity).speed(0.1))
                         .changed();
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Angular Radius:");
-                    camera_changed |= ui.drag_angle(&mut self.scene.sun_size).changed();
+                    rendering_changed |= ui.drag_angle(&mut self.scene.sun_size).changed();
                     self.scene.sun_size = self.scene.sun_size.clamp(0.0, PI);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Sun Direction:");
-                    camera_changed |= ui_vector3(ui, &mut self.scene.sun_direction).changed();
+                    rendering_changed |= ui_vector3(ui, &mut self.scene.sun_direction).changed();
                 });
             });
 
@@ -344,7 +344,7 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 if ui.button("New Plane").clicked() {
                     self.scene.planes.push(Plane::default());
-                    camera_changed = true;
+                    rendering_changed = true;
                 }
 
                 let mut to_delete = vec![];
@@ -356,30 +356,33 @@ impl eframe::App for App {
                             ui.text_edit_singleline(&mut plane.name);
                             ui.horizontal(|ui| {
                                 ui.label("Position:");
-                                camera_changed |= ui_vector3(ui, &mut plane.position).changed();
+                                rendering_changed |= ui_vector3(ui, &mut plane.position).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("XY Rotation:");
-                                camera_changed |= ui.drag_angle(&mut plane.xy_rotation).changed();
+                                rendering_changed |=
+                                    ui.drag_angle(&mut plane.xy_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("YZ Rotation:");
-                                camera_changed |= ui.drag_angle(&mut plane.yz_rotation).changed();
+                                rendering_changed |=
+                                    ui.drag_angle(&mut plane.yz_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("XZ Rotation:");
-                                camera_changed |= ui.drag_angle(&mut plane.xz_rotation).changed();
+                                rendering_changed |=
+                                    ui.drag_angle(&mut plane.xz_rotation).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Size:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(
                                         egui::DragValue::new(&mut plane.width)
                                             .speed(0.1)
                                             .prefix("x:"),
                                     )
                                     .changed();
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(
                                         egui::DragValue::new(&mut plane.height)
                                             .speed(0.1)
@@ -389,14 +392,14 @@ impl eframe::App for App {
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Checker Count:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(
                                         egui::DragValue::new(&mut plane.checker_count_x)
                                             .prefix("x:"),
                                     )
                                     .changed();
                                 plane.checker_count_x = plane.checker_count_x.max(1);
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(
                                         egui::DragValue::new(&mut plane.checker_count_z)
                                             .prefix("z:"),
@@ -406,24 +409,24 @@ impl eframe::App for App {
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Color:");
-                                camera_changed |=
+                                rendering_changed |=
                                     ui.color_edit_button_rgb(plane.color.as_mut()).changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Checker Darkness:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(egui::Slider::new(&mut plane.checker_darkness, 0.0..=1.0))
                                     .changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Emssive Color:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .color_edit_button_rgb(plane.emissive_color.as_mut())
                                     .changed();
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Emission Intensity:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(
                                         egui::DragValue::new(&mut plane.emission_intensity)
                                             .speed(0.1),
@@ -432,7 +435,7 @@ impl eframe::App for App {
                             });
                             ui.horizontal(|ui| {
                                 ui.label("Emissive Checker Darkness:");
-                                camera_changed |= ui
+                                rendering_changed |= ui
                                     .add(egui::Slider::new(
                                         &mut plane.emissive_checker_darkness,
                                         0.0..=1.0,
@@ -484,7 +487,7 @@ impl eframe::App for App {
                                 changed
                             }
                             ui.collapsing("Front Portal", |ui| {
-                                camera_changed |= ui_portal_connection(
+                                rendering_changed |= ui_portal_connection(
                                     ui,
                                     &mut self.scene.planes,
                                     index,
@@ -492,7 +495,7 @@ impl eframe::App for App {
                                 );
                             });
                             ui.collapsing("Back Portal", |ui| {
-                                camera_changed |= ui_portal_connection(
+                                rendering_changed |= ui_portal_connection(
                                     ui,
                                     &mut self.scene.planes,
                                     index,
@@ -501,7 +504,7 @@ impl eframe::App for App {
                             });
                             if ui.button("Delete").clicked() {
                                 to_delete.push(index);
-                                camera_changed = true;
+                                rendering_changed = true;
                             }
                         });
                 }
@@ -542,7 +545,7 @@ impl eframe::App for App {
                         && let Ok(state) = serde_json::from_str(&s)
                     {
                         self.scene = state;
-                        camera_changed = true;
+                        rendering_changed = true;
                     }
                 }
             }
@@ -551,7 +554,7 @@ impl eframe::App for App {
         if !ctx.wants_keyboard_input() {
             ctx.input(|i| {
                 let old_position = self.scene.camera.position;
-                camera_changed |= self.scene.camera.update(i, ts);
+                rendering_changed |= self.scene.camera.update(i, ts);
                 let new_position = self.scene.camera.position;
 
                 let ray = Ray {
@@ -592,7 +595,7 @@ impl eframe::App for App {
                             transform.transform_point(self.scene.camera.position);
                         self.scene.camera.rotation =
                             transform.rotor_part().then(self.scene.camera.rotation);
-                        camera_changed = true;
+                        rendering_changed = true;
                     } else if let Some(other_index) = plane.back_portal.other_index
                         && !hit.front
                     {
@@ -602,7 +605,7 @@ impl eframe::App for App {
                             transform.transform_point(self.scene.camera.position);
                         self.scene.camera.rotation =
                             transform.rotor_part().then(self.scene.camera.rotation);
-                        camera_changed = true;
+                        rendering_changed = true;
                     }
                 }
             });
@@ -614,7 +617,7 @@ impl eframe::App for App {
                 let (rect, _response) =
                     ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
 
-                if camera_changed {
+                if rendering_changed {
                     self.accumulated_frames = 0;
                 }
                 ui.painter()
