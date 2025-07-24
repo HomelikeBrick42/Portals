@@ -635,11 +635,7 @@ impl eframe::App for App {
                                 max_bounces: self.render_settings.max_bounces,
                             },
                             accumulated_frames: self.accumulated_frames,
-                            random_seed: rand::Rng::random(
-                                &mut <rand::rngs::StdRng as rand::SeedableRng>::seed_from_u64(
-                                    self.accumulated_frames as _,
-                                ),
-                            ),
+                            random_seed: rand::random(),
                             render_type: match self.render_settings.render_type {
                                 RenderType::Unlit => RENDER_TYPE_UNLIT,
                                 RenderType::Lit => RENDER_TYPE_LIT,
