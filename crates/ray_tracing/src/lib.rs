@@ -28,6 +28,7 @@ pub struct GpuSceneInfo {
     pub accumulated_frames: u32,
     pub random_seed: u32,
     pub render_type: u32,
+    pub samples_per_pixel: u32,
     pub antialiasing: u32,
     pub plane_count: u32,
 }
@@ -364,6 +365,7 @@ pub struct RayTracingPaintCallback {
     pub accumulated_frames: u32,
     pub random_seed: u32,
     pub render_type: u32,
+    pub samples_per_pixel: u32,
     pub antialiasing: bool,
     pub planes: Vec<GpuPlane>,
 }
@@ -407,6 +409,7 @@ impl eframe::egui_wgpu::CallbackTrait for RayTracingPaintCallback {
                 accumulated_frames: self.accumulated_frames,
                 random_seed: self.random_seed,
                 render_type: self.render_type,
+                samples_per_pixel: self.samples_per_pixel,
                 antialiasing: self.antialiasing as u32,
                 plane_count: self.planes.len() as _,
             };

@@ -27,6 +27,7 @@ struct SceneInfo
     uint32_t accumulated_frames;
     uint32_t random_seed;
     uint32_t render_type;
+    uint32_t samples_per_pixel;
     uint32_t antialiasing;
     uint32_t plane_count;
 }
@@ -64,17 +65,22 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
     ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
 
-    var color = float3(1.0, 0.0, 1.0);
-    switch (info.render_type)
+    var color = float3(0.0, 0.0, 0.0);
+
+    for (var i = 0u; i < info.samples_per_pixel; i++)
     {
-    case 0:
-        color = ray_color_unlit(state, ray);
-        break;
-    case 1:
-        color = ray_color_lit(state, ray);
-        break;
+        switch (info.render_type)
+        {
+        case 0:
+            color += ray_color_unlit(state, ray);
+            break;
+        case 1:
+            color += ray_color_lit(state, ray);
+            break;
+        }
     }
 
+    color /= info.samples_per_pixel;
     let old_color = main_texture.Load(global_index.xy).rgb;
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
 }

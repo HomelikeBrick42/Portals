@@ -30,6 +30,7 @@ struct RenderSettings {
     render_settings_window_open: bool,
     planes_window_open: bool,
     render_type: RenderType,
+    samples_per_pixel: u32,
     antialiasing: bool,
     recursive_portal_count: u32,
     max_bounces: u32,
@@ -43,6 +44,7 @@ impl Default for RenderSettings {
             render_settings_window_open: true,
             planes_window_open: true,
             render_type: RenderType::Unlit,
+            samples_per_pixel: 1,
             antialiasing: true,
             recursive_portal_count: 10,
             max_bounces: 3,
@@ -256,6 +258,16 @@ impl eframe::App for App {
                                 )
                                 .changed();
                         });
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Samples Per Pixel:");
+                    rendering_changed |= ui
+                        .add(egui::DragValue::new(
+                            &mut self.render_settings.samples_per_pixel,
+                        ))
+                        .changed();
+                    self.render_settings.samples_per_pixel =
+                        self.render_settings.samples_per_pixel.max(1);
                 });
                 ui.horizontal(|ui| {
                     ui.label("Anti-aliasing:");
@@ -643,6 +655,7 @@ impl eframe::App for App {
                                 RenderType::Unlit => RENDER_TYPE_UNLIT,
                                 RenderType::Lit => RENDER_TYPE_LIT,
                             },
+                            samples_per_pixel: self.render_settings.samples_per_pixel,
                             antialiasing: self.render_settings.antialiasing,
                             planes: self.scene.planes.iter().map(Plane::to_gpu).collect(),
                         },
