@@ -80,7 +80,9 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
     }
     color /= info.samples_per_pixel;
 
-    let old_color = main_texture.Load(global_index.xy).rgb;
+    var old_color = main_texture.Load(global_index.xy).rgb;
+    if (info.accumulated_frames == 0)
+        old_color = float3(0.0);
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
 }
 
