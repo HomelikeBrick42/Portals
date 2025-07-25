@@ -51,24 +51,23 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
 
     var state = info.random_seed + global_index.x * 90359791 + global_index.y * 29705237;
 
-    var uv_nudge = float2(0.5);
-    if (info.antialiasing != 0)
-        uv_nudge = float2(random_value(state), random_value(state));
-    let uv = ((float2(global_index.xy) + uv_nudge) / float2(width, height)) * 2.0 - 1.0;
-
     let forward = float3(1.0, 0.0, 0.0);
     let up = float3(0.0, 1.0, 0.0);
     let right = float3(0.0, 0.0, 1.0);
 
-    var ray : Ray;
-    // TODO: make optimised functions for getting position/basis axes
-    ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
-    ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
-
     var color = float3(0.0, 0.0, 0.0);
-
     for (var i = 0u; i < info.samples_per_pixel; i++)
     {
+        var uv_nudge = float2(0.5);
+        if (info.antialiasing != 0)
+            uv_nudge = float2(random_value(state), random_value(state));
+        let uv = ((float2(global_index.xy) + uv_nudge) / float2(width, height)) * 2.0 - 1.0;
+
+        var ray : Ray;
+        // TODO: make optimised functions for getting position/basis axes
+        ray.origin = info.camera.transform.transform_point(float3(0.0, 0.0, 0.0));
+        ray.direction = normalize(info.camera.transform.rotor_part().rotate(forward + up * uv.y + right * uv.x * info.aspect));
+
         switch (info.render_type)
         {
         case 0:
@@ -79,8 +78,8 @@ void ray_trace(uint3 global_index: SV_DispatchThreadID)
             break;
         }
     }
-
     color /= info.samples_per_pixel;
+
     let old_color = main_texture.Load(global_index.xy).rgb;
     main_texture.Store(global_index.xy, float4(old_color + (color - old_color) / (info.accumulated_frames + 1), 1.0));
 }
