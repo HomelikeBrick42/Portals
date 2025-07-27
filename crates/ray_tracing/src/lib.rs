@@ -202,7 +202,7 @@ impl RayTracingRenderer {
                 }],
             });
         let scene_info_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Scene Info Bind Group Layout"),
+            label: Some("Scene Info Bind Group"),
             layout: &scene_info_bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
